@@ -1,0 +1,287 @@
+<%- include('header') %>
+
+    <div class="page-header">
+        <h1 class="page-title">⬆️ Upload Video</h1>
+    </div>
+
+    <% if (servers.length===0) { %>
+        <div class="alert alert-warning">
+            ⚠️ Chưa có server nào được cấu hình. Vui lòng <a href="/servers">thêm server</a> trước khi upload.
+        </div>
+        <% } %>
+
+            <div class="card" style="max-width: 820px; margin: 0 auto;">
+                <div class="card-header">
+                    <div class="tab-group" id="uploadTabs">
+                        <button class="tab-btn active" data-tab="local" id="tab-local">💾 Upload Local</button>
+                        <button class="tab-btn" data-tab="remote" id="tab-remote">🔗 Remote URL</button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <!-- Common fields -->
+                    <div class="form-group">
+                        <label class="form-label">Tiêu đề *</label>
+                        <input type="text" id="videoTitle" class="form-control" placeholder="Tên phim, tập phim..."
+                            required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Server *</label>
+                        <select id="videoServer" class="form-control" onchange="onServerChange(this.value)">
+                            <option value="">-- Chọn server --</option>
+                            <% servers.forEach(function(s) { %>
+                                <option value="<%= s.id %>">
+                                    <%= s.name %> (<%= s.type %>)
+                                </option>
+                                <% }); %>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Thư mục (tuỳ chọn)</label>
+                        <select id="videoFolder" class="form-control" onchange="saveSelect('folder', this.value)">
+                            <option value="">-- Root (không có thư mục) --</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Mô tả</label>
+                        <textarea id="videoDesc" class="form-control" rows="3" placeholder="Mô tả phim..."></textarea>
+                    </div>
+
+                    <!-- Local Upload Tab -->
+                    <div class="tab-content" id="tab-content-local">
+                        <div class="upload-dropzone" id="dropzone">
+                            <div class="dropzone-inner">
+                                <div class="dropzone-icon">🎬</div>
+                                <p>Kéo thả file video vào đây hoặc</p>
+                                <label class="btn btn-outline" style="cursor:pointer">
+                                    Chọn File
+                                    <input type="file" id="videoFile" accept=".mp4,.mkv,.avi,.mov,.webm,.flv"
+                                        style="display:none">
+                                </label>
+                                <p class="text-muted text-sm">Hỗ trợ: .mp4, .mkv, .avi, .mov, .webm, .flv</p>
+                                <div id="selectedFileName" class="selected-file-name" style="display:none"></div>
+                            </div>
+                        </div>
+                        <button class="btn btn-primary btn-full mt-2" id="uploadLocalBtn" onclick="startLocalUpload()"
+                            <%=servers.length===0 ? 'disabled' : '' %>>
+                            ⬆️ Bắt đầu Upload
+                        </button>
+                    </div>
+
+                    <!-- Remote URL Tab -->
+                    <div class="tab-content" id="tab-content-remote" style="display:none">
+                        <div class="form-group">
+                            <label class="form-label">URL Video (.mp4, .mkv)</label>
+                            <input type="url" id="remoteUrl" class="form-control"
+                                placeholder="https://example.com/video.mp4">
+                        </div>
+                        <button class="btn btn-primary btn-full" id="uploadRemoteBtn" onclick="startRemoteUpload()"
+                            <%=servers.length===0 ? 'disabled' : '' %>>
+                            🔗 Bắt đầu Remote Upload
+                        </button>
+                    </div>
+
+                    <!-- Progress Section -->
+                    <div id="uploadProgress" style="display:none" class="upload-progress-section mt-3">
+                        <div class="progress-header">
+                            <span id="progressLabel">Đang chuẩn bị...</span>
+                            <span id="progressPct">0%</span>
+                        </div>
+                        <div class="progress-bar-container">
+                            <div class="progress-bar gradient-animated" id="progressBar" style="width: 0%"></div>
+                        </div>
+                        <div id="progressStatus" class="text-muted text-sm mt-1"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="__appData" data-folders="<%= JSON.stringify(folders).replace(/" /g, '&quot;' ) %>"
+                style="display:none"></div>
+
+            <script>
+                // Folder data store
+                const folderData = JSON.parse(document.getElementById('__appData').dataset.folders || '[]');
+
+                function onServerChange(serverId) {
+                    saveSelect('server', serverId);
+                    const folderSelect = document.getElementById('videoFolder');
+                    folderSelect.innerHTML = '<option value="">-- Root (không có thư mục) --</option>';
+                    const serverFolders = folderData.filter(f => String(f.server_id) === String(serverId));
+                    serverFolders.forEach(f => {
+                        const depth = (f.path.match(/\//g) || []).length;
+                        const indent = '\u00a0\u00a0\u00a0\u00a0'.repeat(depth);
+                        const opt = document.createElement('option');
+                        opt.value = f.id;
+                        opt.textContent = indent + '📁 ' + f.path;
+                        folderSelect.appendChild(opt);
+                    });
+                    // Restore saved folder
+                    const savedFolder = localStorage.getItem('upload_folder');
+                    if (savedFolder) folderSelect.value = savedFolder;
+                }
+
+                // Tab switching
+                document.querySelectorAll('.tab-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                        document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
+                        btn.classList.add('active');
+                        const tab = btn.dataset.tab;
+                        document.getElementById('tab-content-' + tab).style.display = '';
+                        localStorage.setItem('upload_active_tab', tab);
+                    });
+                });
+
+                // File input
+                document.getElementById('videoFile').addEventListener('change', function () {
+                    const f = this.files[0];
+                    if (f) {
+                        const el = document.getElementById('selectedFileName');
+                        el.textContent = '📎 ' + f.name + ' (' + formatBytes(f.size) + ')';
+                        el.style.display = '';
+                    }
+                });
+
+                // Drag & Drop
+                const dropzone = document.getElementById('dropzone');
+                dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag-over'); });
+                dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag-over'));
+                dropzone.addEventListener('drop', e => {
+                    e.preventDefault();
+                    dropzone.classList.remove('drag-over');
+                    const file = e.dataTransfer.files[0];
+                    if (file) {
+                        const input = document.getElementById('videoFile');
+                        const dt = new DataTransfer();
+                        dt.items.add(file);
+                        input.files = dt.files;
+                        const el = document.getElementById('selectedFileName');
+                        el.textContent = '📎 ' + file.name + ' (' + formatBytes(file.size) + ')';
+                        el.style.display = '';
+                    }
+                });
+
+                function getCommonData() {
+                    return {
+                        title: document.getElementById('videoTitle').value.trim(),
+                        description: document.getElementById('videoDesc').value.trim(),
+                        server_id: document.getElementById('videoServer').value,
+                        folder_id: document.getElementById('videoFolder').value,
+                    };
+                }
+
+                function showProgress(show) {
+                    document.getElementById('uploadProgress').style.display = show ? '' : 'none';
+                }
+
+                function updateProgress(pct, label, status) {
+                    document.getElementById('progressBar').style.width = pct + '%';
+                    document.getElementById('progressPct').textContent = pct + '%';
+                    document.getElementById('progressLabel').textContent = label;
+                    document.getElementById('progressStatus').textContent = status;
+                }
+
+                function startSseForVideo(videoId) {
+                    const es = new EventSource('/videos/progress/' + videoId);
+                    es.onmessage = (e) => {
+                        const data = JSON.parse(e.data);
+                        const pct = data.progress;
+                        const status = data.status;
+                        if (status === 'done') {
+                            updateProgress(100, '✅ Upload hoàn thành!', 'Video đã sẵn sàng');
+                            es.close();
+                            setTimeout(() => window.location.href = '/videos', 1500);
+                        } else if (status === 'error') {
+                            updateProgress(pct, '❌ Lỗi upload', 'Đã xảy ra lỗi');
+                            es.close();
+                        } else if (status === 'stopped') {
+                            updateProgress(0, '⏹ Đã dừng', '');
+                            es.close();
+                        } else {
+                            updateProgress(pct, '⏳ Đang upload...', pct + '% hoàn thành');
+                        }
+                    };
+                }
+
+                async function startLocalUpload() {
+                    const common = getCommonData();
+                    if (!common.title) return alert('Vui lòng nhập tiêu đề');
+                    if (!common.server_id) return alert('Vui lòng chọn server');
+                    const file = document.getElementById('videoFile').files[0];
+                    if (!file) return alert('Vui lòng chọn file video');
+
+                    const formData = new FormData();
+                    Object.entries(common).forEach(([k, v]) => formData.append(k, v));
+                    formData.append('video', file);
+
+                    showProgress(true);
+                    updateProgress(0, '⏳ Đang upload...', 'Đang gửi dữ liệu...');
+
+                    try {
+                        const res = await fetch('/videos/upload/local', { method: 'POST', body: formData });
+                        const data = await res.json();
+                        if (data.success) {
+                            startSseForVideo(data.videoId);
+                        } else {
+                            updateProgress(0, '❌ ' + (data.error || 'Lỗi'), '');
+                        }
+                    } catch (err) {
+                        updateProgress(0, '❌ Lỗi kết nối', err.message);
+                    }
+                }
+
+                async function startRemoteUpload() {
+                    const common = getCommonData();
+                    if (!common.title) return alert('Vui lòng nhập tiêu đề');
+                    if (!common.server_id) return alert('Vui lòng chọn server');
+                    const url = document.getElementById('remoteUrl').value.trim();
+                    if (!url) return alert('Vui lòng nhập URL video');
+
+                    showProgress(true);
+                    updateProgress(0, '⏳ Đang khởi tạo...', 'Đang kết nối...');
+
+                    try {
+                        const res = await fetch('/videos/upload/remote', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ ...common, url }),
+                        });
+                        const data = await res.json();
+                        if (data.success) {
+                            startSseForVideo(data.videoId);
+                        } else {
+                            updateProgress(0, '❌ ' + (data.error || 'Lỗi'), '');
+                        }
+                    } catch (err) {
+                        updateProgress(0, '❌ Lỗi kết nối', err.message);
+                    }
+                }
+
+                function formatBytes(b) {
+                    if (!b) return '0 B';
+                    const s = ['B', 'KB', 'MB', 'GB', 'TB'];
+                    const i = Math.floor(Math.log(b) / Math.log(1024));
+                    return (b / Math.pow(1024, i)).toFixed(1) + ' ' + s[i];
+                }
+
+                // Restore localStorage
+                window.addEventListener('DOMContentLoaded', () => {
+                    ['server', 'folder'].forEach(key => {
+                        const val = localStorage.getItem('upload_' + key);
+                        if (val) {
+                            const el = document.getElementById('video' + key.charAt(0).toUpperCase() + key.slice(1));
+                            if (el) {
+                                el.value = val;
+                                if (key === 'server') onServerChange(val);
+                            }
+                        }
+                    });
+                    const tab = localStorage.getItem('upload_active_tab');
+                    if (tab) {
+                        const btn = document.querySelector('[data-tab="' + tab + '"]');
+                        if (btn) btn.click();
+                    }
+                });
+                function saveSelect(key, val) { localStorage.setItem('upload_' + key, val); }
+            </script>
+
+            <%- include('footer') %>

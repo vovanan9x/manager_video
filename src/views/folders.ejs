@@ -1,0 +1,569 @@
+<%- include('header') %>
+
+    <style>
+        /* ===== Layout ===== */
+        .folders-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 1.25rem;
+            flex-wrap: wrap;
+        }
+
+        /* ===== Alert ===== */
+        .alert {
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+        }
+
+        .alert-success {
+            background: rgba(34, 197, 94, .15);
+            border: 1px solid rgba(34, 197, 94, .3);
+            color: #4ade80;
+        }
+
+        .alert-danger {
+            background: rgba(239, 68, 68, .15);
+            border: 1px solid rgba(239, 68, 68, .3);
+            color: #f87171;
+        }
+
+        .alert-warning {
+            background: rgba(251, 191, 36, .15);
+            border: 1px solid rgba(251, 191, 36, .3);
+            color: #fbbf24;
+        }
+
+        /* ===== Explorer Card ===== */
+        .explorer-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .explorer-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.85rem 1.2rem;
+            border-bottom: 1px solid var(--border-color);
+            background: var(--bg-tertiary);
+        }
+
+        .explorer-header-title {
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        .explorer-header .ml-auto {
+            margin-left: auto;
+        }
+
+        .explorer-empty {
+            text-align: center;
+            padding: 3rem 1rem;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        .explorer-empty .empty-icon {
+            font-size: 3rem;
+            margin-bottom: 0.75rem;
+            opacity: 0.5;
+        }
+
+        /* ===== Server Group ===== */
+        .server-group {
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .server-group:last-child {
+            border-bottom: none;
+        }
+
+        .server-group-label {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            padding: 0.5rem 1rem;
+            background: rgba(255, 255, 255, 0.03);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        /* ===== Folder Tree ===== */
+        .folder-tree {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .folder-tree .folder-tree {
+            padding-left: 0;
+            margin-left: 22px;
+            border-left: 1px dashed var(--border-color);
+        }
+
+        .folder-node {
+            margin: 0;
+        }
+
+        .folder-row {
+            display: flex;
+            align-items: center;
+            padding: 0.28rem 1rem 0.28rem 0.5rem;
+            transition: background .12s;
+            cursor: default;
+            user-select: none;
+            min-height: 36px;
+        }
+
+        .folder-row:hover {
+            background: var(--bg-tertiary);
+        }
+
+        .toggle-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--text-muted);
+            width: 20px;
+            height: 20px;
+            flex-shrink: 0;
+            font-size: 0.65rem;
+            transition: transform .18s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            margin-right: 2px;
+        }
+
+        .toggle-btn:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .toggle-btn.open {
+            transform: rotate(90deg);
+        }
+
+        .toggle-placeholder {
+            width: 20px;
+            height: 20px;
+            flex-shrink: 0;
+            margin-right: 2px;
+        }
+
+        .folder-icon {
+            font-size: 1rem;
+            margin-right: 6px;
+            flex-shrink: 0;
+            line-height: 1;
+        }
+
+        .folder-name {
+            flex: 1;
+            font-size: 0.88rem;
+            font-weight: 500;
+            color: var(--text-primary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .folder-path-chip {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            background: var(--bg-tertiary);
+            padding: 1px 7px;
+            border-radius: 20px;
+            margin-left: 6px;
+            flex-shrink: 0;
+            max-width: 260px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        /* ===== Folder Actions (hidden, show on hover) ===== */
+        .folder-actions {
+            display: flex;
+            gap: 3px;
+            margin-left: 8px;
+            flex-shrink: 0;
+            opacity: 0;
+            transition: opacity .15s;
+        }
+
+        .folder-row:hover .folder-actions {
+            opacity: 1;
+        }
+
+        .action-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 3px 8px;
+            border-radius: 5px;
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            transition: background .12s, color .12s;
+            display: flex;
+            align-items: center;
+            gap: 3px;
+            white-space: nowrap;
+        }
+
+        .action-btn:hover {
+            color: var(--text-primary);
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .action-btn.danger:hover {
+            color: #f87171;
+            background: rgba(239, 68, 68, 0.12);
+        }
+
+        .action-btn.success:hover {
+            color: #4ade80;
+            background: rgba(34, 197, 94, 0.12);
+        }
+
+        /* ===== Children collapse ===== */
+        .children-list.collapsed {
+            display: none;
+        }
+
+        /* ===== Modal ===== */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, .6);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            backdrop-filter: blur(4px);
+        }
+
+        .modal-overlay.is-open {
+            display: flex;
+        }
+
+        .modal {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            width: 460px;
+            max-width: 95vw;
+            box-shadow: 0 24px 70px rgba(0, 0, 0, .5);
+            animation: modal-in .18s ease;
+        }
+
+        @keyframes modal-in {
+            from {
+                opacity: 0;
+                transform: scale(.96) translateY(-10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: none;
+            }
+        }
+
+        .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1rem 1.4rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .modal-header h3 {
+            margin: 0;
+            font-size: 1rem;
+            font-weight: 600;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--text-muted);
+            font-size: 1.1rem;
+            line-height: 1;
+            border-radius: 6px;
+            padding: 4px 7px;
+            transition: background .12s, color .12s;
+        }
+
+        .modal-close:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .modal-body {
+            padding: 1.4rem;
+        }
+
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.75rem;
+            padding: 1rem 1.4rem;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .modal-breadcrumb {
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            background: var(--bg-tertiary);
+            border-radius: 6px;
+            padding: 6px 10px;
+            margin-bottom: 1rem;
+            font-family: monospace;
+            word-break: break-all;
+        }
+
+        .hint-text {
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            margin-top: 0.35rem;
+        }
+    </style>
+
+    <div class="page-header">
+        <h1 class="page-title">📁 Quản lí Thư mục</h1>
+    </div>
+
+    <% if (queryError) { %>
+        <div class="alert alert-danger">
+            <%= queryError %>
+        </div>
+        <% } %>
+            <% if (querySuccess) { %>
+                <div class="alert alert-success">✅ Thao tác thành công!</div>
+                <% } %>
+                    <% if (servers.length===0) { %>
+                        <div class="alert alert-warning">⚠️ Chưa có server nào. <a href="/servers">Thêm server</a>
+                            trước.</div>
+                        <% } %>
+
+                            <!-- Toolbar -->
+                            <div class="folders-toolbar">
+                                <% if (servers.length> 0) { %>
+                                    <button class="btn btn-primary" onclick="openCreateModal(null,null,null)"
+                                        id="btnCreateRoot">
+                                        ➕ Tạo thư mục gốc
+                                    </button>
+                                    <% } %>
+                            </div>
+
+                            <!-- Explorer -->
+                            <div class="explorer-card">
+                                <div class="explorer-header">
+                                    <span>🌲</span>
+                                    <span class="explorer-header-title">Cây Thư mục</span>
+                                    <span class="ml-auto" style="font-size:0.78rem;color:var(--text-muted)">
+                                        Hover vào thư mục để thấy tùy chọn
+                                    </span>
+                                </div>
+
+                                <% if (folders.length===0) { %>
+                                    <div class="explorer-empty">
+                                        <div class="empty-icon">📂</div>
+                                        <div>Chưa có thư mục nào</div>
+                                        <% if (servers.length> 0) { %>
+                                            <button class="btn btn-primary" style="margin-top:1rem"
+                                                onclick="openCreateModal(null,null,null)">
+                                                ➕ Tạo thư mục đầu tiên
+                                            </button>
+                                            <% } %>
+                                    </div>
+                                    <% } else { %>
+                                        <% folderTrees.forEach(function(treeData) { %>
+                                            <div class="server-group">
+                                                <div class="server-group-label">
+                                                    🖥️ <%= treeData.server.name %>
+                                                        <span
+                                                            style="font-weight:400;text-transform:none;letter-spacing:0;opacity:.6;margin-left:4px">
+                                                            (<%= treeData.server.type %>)
+                                                        </span>
+                                                </div>
+                                                <ul class="folder-tree"><%- renderTree(treeData.roots,
+                                                        treeData.server.id) %></ul>
+                                            </div>
+                                            <% }); %>
+                                                <% } %>
+                            </div>
+
+
+                            <!-- ===== Modal: Tạo thư mục ===== -->
+                            <div class="modal-overlay" id="createModal">
+                                <div class="modal">
+                                    <div class="modal-header">
+                                        <h3 id="createModalTitle">🗂️ Tạo thư mục mới</h3>
+                                        <button class="modal-close" onclick="closeModal('createModal')">✕</button>
+                                    </div>
+                                    <form method="POST" action="/folders/add" id="createForm">
+                                        <input type="hidden" name="parent_id" id="createParentId" value="">
+                                        <input type="hidden" name="server_id" id="createServerId" value="">
+                                        <div class="modal-body">
+                                            <div class="modal-breadcrumb" id="createBreadcrumb" style="display:none">
+                                                📍 Trong: <strong id="createBreadcrumbText"></strong>
+                                            </div>
+                                            <div class="form-group" id="serverSelectGroup">
+                                                <label class="form-label">Server *</label>
+                                                <select id="createServerSelect" class="form-control">
+                                                    <option value="">-- Chọn server --</option>
+                                                    <% servers.forEach(function(s) { %>
+                                                        <option value="<%= s.id %>">
+                                                            <%= s.name %>
+                                                        </option>
+                                                        <% }); %>
+                                                </select>
+                                            </div>
+                                            <div class="form-group">
+                                                <label class="form-label">Tên thư mục *</label>
+                                                <input type="text" name="name" id="createNameInput" class="form-control"
+                                                    placeholder="vd: phim-hanh-dong" required autocomplete="off">
+                                                <div class="hint-text" id="createPathHint"></div>
+                                            </div>
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-outline"
+                                                onclick="closeModal('createModal')">Hủy</button>
+                                            <button type="submit" class="btn btn-primary">🗂️ Tạo thư mục</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+
+
+                            <!-- ===== Modal: Đổi tên ===== -->
+                            <div class="modal-overlay" id="renameModal">
+                                <div class="modal">
+                                    <div class="modal-header">
+                                        <h3>✏️ Đổi tên thư mục</h3>
+                                        <button class="modal-close" onclick="closeModal('renameModal')">✕</button>
+                                    </div>
+                                    <form method="POST" id="renameForm">
+                                        <div class="modal-body">
+                                            <div class="modal-breadcrumb" id="renameBreadcrumb"></div>
+                                            <div class="form-group" style="margin-top:.75rem">
+                                                <label class="form-label">Tên mới *</label>
+                                                <input type="text" name="name" id="renameInput" class="form-control"
+                                                    required autocomplete="off">
+                                            </div>
+                                            <p class="hint-text">⚠️ Đổi tên sẽ cập nhật path của tất cả thư mục con.</p>
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-outline"
+                                                onclick="closeModal('renameModal')">Hủy</button>
+                                            <button type="submit" class="btn btn-primary">💾 Lưu thay đổi</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+
+
+                            <div id="__foldersData" data-json="<%= foldersJson.replace(/\" /g, '&quot;' ) %>"
+                                style="display:none"></div>
+
+                            <script>
+                                var folderData = JSON.parse(document.getElementById('__foldersData').dataset.json || '[]');
+
+                                function closeModal(id) {
+                                    document.getElementById(id).classList.remove('is-open');
+                                }
+
+                                ['createModal', 'renameModal'].forEach(function (id) {
+                                    document.getElementById(id).addEventListener('click', function (e) {
+                                        if (e.target === this) closeModal(id);
+                                    });
+                                });
+
+                                document.addEventListener('keydown', function (e) {
+                                    if (e.key === 'Escape') {
+                                        closeModal('createModal');
+                                        closeModal('renameModal');
+                                    }
+                                });
+
+                                function openCreateModal(parentId, parentPath, serverId) {
+                                    var title = document.getElementById('createModalTitle');
+                                    var breadcrumb = document.getElementById('createBreadcrumb');
+                                    var breadcrumbT = document.getElementById('createBreadcrumbText');
+                                    var serverGroup = document.getElementById('serverSelectGroup');
+                                    var serverSel = document.getElementById('createServerSelect');
+                                    var serverHid = document.getElementById('createServerId');
+                                    var parentHid = document.getElementById('createParentId');
+                                    var nameInput = document.getElementById('createNameInput');
+                                    var pathHint = document.getElementById('createPathHint');
+
+                                    nameInput.value = '';
+                                    parentHid.value = parentId || '';
+                                    serverHid.value = serverId || '';
+
+                                    if (parentId) {
+                                        title.textContent = 'Tao thu muc con';
+                                        breadcrumb.style.display = 'block';
+                                        breadcrumbT.textContent = parentPath;
+                                        serverGroup.style.display = 'none';
+                                        serverSel.required = false;
+                                        pathHint.textContent = 'Se tao trong: ' + parentPath;
+                                    } else {
+                                        title.textContent = 'Tao thu muc goc';
+                                        breadcrumb.style.display = 'none';
+                                        serverGroup.style.display = 'block';
+                                        serverSel.required = true;
+                                        serverSel.value = '';
+                                        serverHid.value = '';
+                                        pathHint.textContent = '';
+                                    }
+
+                                    document.getElementById('createModal').classList.add('is-open');
+                                    setTimeout(function () { nameInput.focus(); }, 80);
+                                }
+
+                                document.getElementById('createServerSelect').addEventListener('change', function () {
+                                    document.getElementById('createServerId').value = this.value;
+                                });
+
+                                function openRename(id, name, path) {
+                                    document.getElementById('renameInput').value = name;
+                                    document.getElementById('renameForm').action = '/folders/rename/' + id;
+                                    document.getElementById('renameBreadcrumb').textContent = '> ' + path;
+                                    document.getElementById('renameModal').classList.add('is-open');
+                                    setTimeout(function () {
+                                        var inp = document.getElementById('renameInput');
+                                        inp.focus(); inp.select();
+                                    }, 80);
+                                }
+
+                                function toggleNode(btn) {
+                                    var li = btn.closest('.folder-node');
+                                    var childList = li.querySelector('.children-list');
+                                    if (!childList) return;
+                                    var collapsed = childList.classList.toggle('collapsed');
+                                    if (collapsed) btn.classList.remove('open');
+                                    else btn.classList.add('open');
+                                }
+
+                                (function () {
+                                    var p = new URLSearchParams(location.search);
+                                    if (p.has('error') || p.has('success')) history.replaceState(null, '', location.pathname);
+                                })();
+                            </script>
+
+                            <%- include('footer') %>

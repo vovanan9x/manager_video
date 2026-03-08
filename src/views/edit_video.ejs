@@ -1,0 +1,72 @@
+<%- include('header') %>
+
+    <div class="page-header">
+        <h1 class="page-title">✏️ Sửa Video</h1>
+        <a href="/videos" class="btn btn-outline">← Quay lại</a>
+    </div>
+
+    <div class="card" style="max-width:600px">
+        <div class="card-body">
+            <% if (error) { %>
+                <div class="alert alert-error">
+                    <%= error %>
+                </div>
+                <% } %>
+                    <% if (success) { %>
+                        <div class="alert alert-success">
+                            <%= success %>
+                        </div>
+                        <% } %>
+                            <form method="POST" action="/videos/edit/<%= video.id %>">
+                                <div class="form-group">
+                                    <label class="form-label">Tiêu đề *</label>
+                                    <input type="text" name="title" class="form-control" value="<%= video.title %>"
+                                        required>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Thể loại</label>
+                                    <select name="genre" class="form-control">
+                                        <option value="">-- Chọn thể loại --</option>
+                                        <% ['Hành Động','Tình Cảm','Hài Hước','Kinh Dị','Khoa Học Viễn Tưởng','Hoạt
+                                            Hình','Tài Liệu','Thể Thao','Khác'].forEach(function(g) { %>
+                                            <option value="<%= g %>" <%=video.genre===g ? 'selected' : '' %>><%= g %>
+                                            </option>
+                                            <% }); %>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Thư mục</label>
+                                    <select name="folder_id" class="form-control">
+                                        <option value="">-- Root --</option>
+                                        <% folders.forEach(function(f) { const depth=(f.path.match(/\//g) || []).length;
+                                            const indent='\u00a0\u00a0\u00a0\u00a0' .repeat(depth); %>
+                                            <option value="<%= f.id %>" <%=video.folder_id==f.id ? 'selected' : '' %>>
+                                                <%= indent %>📁 <%= f.path %>
+                                            </option>
+                                            <% }); %>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Mô tả</label>
+                                    <textarea name="description" class="form-control"
+                                        rows="4"><%= video.description || '' %></textarea>
+                                </div>
+                                <div class="info-box">
+                                    <div class="info-row"><span>File:</span><code><%= video.filename %></code></div>
+                                    <div class="info-row"><span>Server ID:</span><span>
+                                            <%= video.server_id || '—' %>
+                                        </span></div>
+                                    <div class="info-row"><span>Trạng thái:</span><span
+                                            class="status-badge status-<%= video.status %>">
+                                            <%= video.status %>
+                                        </span></div>
+                                </div>
+                                <div class="form-actions">
+                                    <a href="/videos" class="btn btn-outline">Hủy</a>
+                                    <button type="submit" class="btn btn-primary">💾 Lưu thay đổi</button>
+                                </div>
+                            </form>
+        </div>
+    </div>
+
+    <%- include('footer') %>

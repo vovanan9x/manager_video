@@ -1,0 +1,229 @@
+<% function formatBytes(b) { if (!b) return '0 B' ; const s=['B', 'KB' , 'MB' , 'GB' , 'TB' ]; const
+    i=Math.floor(Math.log(b) / Math.log(1024)); return (b / Math.pow(1024, i)).toFixed(1) + ' ' + s[i]; } function
+    getStatusLabel(s) { return { pending: '⏳ Chờ' , uploading: '⏫ Đang upload' , done: '✅ Xong' , error: '❌ Lỗi' ,
+    stopped: '⏹ Dừng' }[s] || s; } %>
+    <%- include('header') %>
+
+        <div class="page-header">
+            <div>
+                <h1 class="page-title">🎥 Quản lí Video</h1>
+            </div>
+            <a href="/videos/upload" class="btn btn-primary">⬆️ Upload mới</a>
+        </div>
+
+        <!-- Filters -->
+        <div class="card filter-card mb-3">
+            <div class="filter-row">
+                <select id="filterServer" class="form-control form-control-sm" onchange="applyFilters()">
+                    <option value="">🖥️ Tất cả Server</option>
+                    <% servers.forEach(function(s) { %>
+                        <option value="<%= s.id %>" <%=filters.server_id==s.id ? 'selected' : '' %>><%= s.name %>
+                        </option>
+                        <% }); %>
+                </select>
+                <select id="filterFolder" class="form-control form-control-sm" onchange="applyFilters()">
+                    <option value="">📁 Tất cả Thư mục</option>
+                    <% folders.forEach(function(f) { %>
+                        <option value="<%= f.id %>" <%=filters.folder_id==f.id ? 'selected' : '' %>><%= f.path %>
+                        </option>
+                        <% }); %>
+                </select>
+                <select id="filterStatus" class="form-control form-control-sm" onchange="applyFilters()">
+                    <option value="">📋 Tất cả Trạng thái</option>
+                    <option value="pending" <%=filters.status==='pending' ? 'selected' : '' %>>⏳ Chờ</option>
+                    <option value="uploading" <%=filters.status==='uploading' ? 'selected' : '' %>>⏫ Đang up</option>
+                    <option value="done" <%=filters.status==='done' ? 'selected' : '' %>>✅ Xong</option>
+                    <option value="error" <%=filters.status==='error' ? 'selected' : '' %>>❌ Lỗi</option>
+                    <option value="stopped" <%=filters.status==='stopped' ? 'selected' : '' %>>⏹ Dừng</option>
+                </select>
+                <button class="btn btn-sm btn-outline" onclick="clearFilters()">✕ Xóa lọc</button>
+            </div>
+        </div>
+
+        <!-- Videos Table -->
+        <div class="card">
+            <div class="card-body p-0">
+                <% if (videos.length===0) { %>
+                    <div class="empty-state">
+                        <div class="empty-icon">🎬</div>
+                        <p>Chưa có video nào. <a href="/videos/upload">Upload ngay!</a></p>
+                    </div>
+                    <% } else { %>
+                        <table class="table video-table">
+                            <thead>
+                                <tr>
+                                    <th>Tiêu đề</th>
+                                    <th>Thể loại</th>
+                                    <th>Server / Thư mục</th>
+                                    <th>Kích thước</th>
+                                    <th>Trạng thái / Tiến trình</th>
+                                    <th>Người up</th>
+                                    <th>Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <% videos.forEach(function(v) { %>
+                                    <tr id="video-row-<%= v.id %>">
+                                        <td>
+                                            <div class="video-title">
+                                                <%= v.title %>
+                                            </div>
+                                            <div class="text-muted text-sm">
+                                                <%= v.original_name || v.filename %>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <% if (v.genre) { %><span class="genre-badge">
+                                                    <%= v.genre %>
+                                                </span>
+                                                <% } else { %><span class="text-muted">—</span>
+                                                    <% } %>
+                                        </td>
+                                        <td>
+                                            <div class="text-sm">
+                                                <%= v.server_name || '—' %>
+                                            </div>
+                                            <div class="text-muted text-sm">
+                                                <%= v.folder_name ? '📁 ' + v.folder_name : 'Root' %>
+                                            </div>
+                                        </td>
+                                        <td class="text-muted text-sm">
+                                            <%= v.file_size ? formatBytes(v.file_size) : '—' %>
+                                        </td>
+                                        <td>
+                                            <div class="status-cell">
+                                                <span class="status-badge status-<%= v.status %>"
+                                                    id="status-<%= v.id %>">
+                                                    <%= getStatusLabel(v.status) %>
+                                                </span>
+                                                <% if (v.status==='uploading' || v.status==='pending' ) { %>
+                                                    <div class="progress-bar-container mini">
+                                                        <div class="progress-bar gradient-animated" id="pb-<%= v.id %>"
+                                                            style="width:<%= v.upload_progress %>%"></div>
+                                                    </div>
+                                                    <span class="text-sm" id="pct-<%= v.id %>">
+                                                        <%= v.upload_progress %>%
+                                                    </span>
+                                                    <% } %>
+                                            </div>
+                                        </td>
+                                        <td class="text-muted text-sm">
+                                            <%= v.uploader_name %>
+                                        </td>
+                                        <td>
+                                            <div class="action-buttons">
+                                                <% if (v.status==='uploading' || v.status==='pending' ) { %>
+                                                    <button class="btn btn-sm btn-warning"
+                                                        onclick="stopVideo(<%= v.id %>)" title="Dừng upload">⏹</button>
+                                                    <% } %>
+                                                        <a href="/videos/edit/<%= v.id %>"
+                                                            class="btn btn-sm btn-outline" title="Sửa">✏️</a>
+                                                        <button class="btn btn-sm btn-outline"
+                                                            onclick="copyLink(<%= v.id %>)" title="Lấy link">🔗</button>
+                                                        <button class="btn btn-sm btn-danger"
+                                                            onclick="deleteVideo(<%= v.id %>, '<%= v.title.replace(/'/g, "") %>')"
+                                                            title="Xóa">🗑️</button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <% }); %>
+                            </tbody>
+                        </table>
+                        <% } %>
+            </div>
+        </div>
+
+        <script>
+            function formatBytes(b) {
+                if (!b) return '0 B';
+                const s = ['B', 'KB', 'MB', 'GB', 'TB'];
+                const i = Math.floor(Math.log(b) / Math.log(1024));
+                return (b / Math.pow(1024, i)).toFixed(1) + ' ' + s[i];
+            }
+            function getStatusLabel(s) {
+                return { pending: '⏳ Chờ', uploading: '⏫ Đang upload', done: '✅ Xong', error: '❌ Lỗi', stopped: '⏹ Dừng' }[s] || s;
+            }
+
+  // Start SSE for active videos
+  <% videos.filter(function (v) { return v.status === 'uploading' || v.status === 'pending'; }).forEach(function (v) { %>
+                (function () {
+                    const es = new EventSource('/videos/progress/<%= v.id %>');
+                    es.onmessage = (e) => {
+                        const d = JSON.parse(e.data);
+                        const pb = document.getElementById('pb-' + d.videoId);
+                        const pct = document.getElementById('pct-' + d.videoId);
+                        const st = document.getElementById('status-' + d.videoId);
+                        if (pb) pb.style.width = d.progress + '%';
+                        if (pct) pct.textContent = d.progress + '%';
+                        if (st) { st.textContent = getStatusLabel(d.status); st.className = 'status-badge status-' + d.status; }
+                        if (d.status === 'done' || d.status === 'error' || d.status === 'stopped') {
+                            es.close();
+                            setTimeout(() => location.reload(), 1000);
+                        }
+                    };
+                })();
+  <% }); %>
+
+                async function stopVideo(id) {
+                    if (!confirm('Dừng upload video này?')) return;
+                    const res = await fetch('/videos/stop/' + id, { method: 'POST' });
+                    const data = await res.json();
+                    if (data.success) location.reload();
+                }
+
+            async function deleteVideo(id, title) {
+                if (!confirm('Xóa video "' + title + '"? Hành động này không thể hoàn tác.')) return;
+                const res = await fetch('/videos/delete/' + id, { method: 'POST' });
+                const data = await res.json();
+                if (data.success) document.getElementById('video-row-' + id).remove();
+                else alert('Lỗi xóa video');
+            }
+
+            async function copyLink(id) {
+                const res = await fetch('/api/videos/' + id + '/link');
+                const data = await res.json();
+                if (data.video && data.video.link) {
+                    navigator.clipboard.writeText(data.video.link).then(() => showToast('✅ Đã copy link!'));
+                } else {
+                    alert('Video chưa có link (chưa upload xong)');
+                }
+            }
+
+            function applyFilters() {
+                const s = document.getElementById('filterServer').value;
+                const f = document.getElementById('filterFolder').value;
+                const st = document.getElementById('filterStatus').value;
+                localStorage.setItem('videos_filter_server', s);
+                localStorage.setItem('videos_filter_folder', f);
+                localStorage.setItem('videos_filter_status', st);
+                const params = new URLSearchParams();
+                if (s) params.set('server_id', s);
+                if (f) params.set('folder_id', f);
+                if (st) params.set('status', st);
+                window.location.search = params.toString();
+            }
+
+            function clearFilters() {
+                ['videos_filter_server', 'videos_filter_folder', 'videos_filter_status'].forEach(k => localStorage.removeItem(k));
+                window.location.search = '';
+            }
+
+            // Restore filters from localStorage if no URL params
+            window.addEventListener('DOMContentLoaded', () => {
+                const urlParams = new URLSearchParams(window.location.search);
+                if (!urlParams.has('server_id') && !urlParams.has('folder_id') && !urlParams.has('status')) {
+                    const s = localStorage.getItem('videos_filter_server');
+                    const f = localStorage.getItem('videos_filter_folder');
+                    const st = localStorage.getItem('videos_filter_status');
+                    if (s || f || st) {
+                        const p = new URLSearchParams();
+                        if (s) p.set('server_id', s);
+                        if (f) p.set('folder_id', f);
+                        if (st) p.set('status', st);
+                        window.location.search = p.toString();
+                    }
+                }
+            });
+        </script>
+
+        <%- include('footer') %>

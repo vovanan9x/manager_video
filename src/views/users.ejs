@@ -1,0 +1,145 @@
+<%- include('header') %>
+
+    <div class="page-header">
+        <h1 class="page-title">👥 Quản lí Users</h1>
+    </div>
+
+    <% if (typeof error !=='undefined' && error) { %>
+        <div class="alert alert-error">
+            <%= error %>
+        </div>
+        <% } %>
+            <% if (typeof success !=='undefined' && success) { %>
+                <div class="alert alert-success">
+                    <%= success %>
+                </div>
+                <% } %>
+
+                    <div class="content-grid-2">
+                        <!-- Add User Form -->
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title">➕ Thêm User mới</h3>
+                            </div>
+                            <div class="card-body">
+                                <form method="POST" action="/users/add">
+                                    <div class="form-group">
+                                        <label class="form-label">Tên đăng nhập *</label>
+                                        <input type="text" name="username" class="form-control" required
+                                            placeholder="username">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Mật khẩu *</label>
+                                        <input type="password" name="password" class="form-control" required
+                                            placeholder="••••••••">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Vai trò *</label>
+                                        <select name="role" class="form-control">
+                                            <option value="uploader">📤 Uploader</option>
+                                            <option value="administrator">👑 Administrator</option>
+                                        </select>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary">Thêm User</button>
+                                </form>
+                            </div>
+                        </div>
+
+                        <!-- Users List -->
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title">📋 Danh sách Users (<%= users.length %>)</h3>
+                            </div>
+                            <div class="card-body p-0">
+                                <table class="table">
+                                    <thead>
+                                        <tr>
+                                            <th>Username</th>
+                                            <th>Vai trò</th>
+                                            <th>Ngày tạo</th>
+                                            <th>Thao tác</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <% users.forEach(function(u) { %>
+                                            <tr>
+                                                <td><strong>
+                                                        <%= u.username %>
+                                                    </strong></td>
+                                                <td><span class="badge-role badge-<%= u.role %>">
+                                                        <%= u.role==='administrator' ? '👑 Admin' : '📤 Uploader' %>
+                                                    </span></td>
+                                                <td class="text-muted">
+                                                    <%= new Date(u.created_at).toLocaleDateString('vi-VN') %>
+                                                </td>
+                                                <td>
+                                                    <button class="btn btn-sm btn-outline"
+                                                        onclick="openEditModal(<%= u.id %>, '<%= u.username %>', '<%= u.role %>')">✏️</button>
+                                                    <% if (u.id !==user.id) { %>
+                                                        <form method="POST" action="/users/delete/<%= u.id %>"
+                                                            style="display:inline"
+                                                            onsubmit="return confirm('Xóa user <%= u.username %>?')">
+                                                            <button type="submit"
+                                                                class="btn btn-sm btn-danger">🗑️</button>
+                                                        </form>
+                                                        <% } else { %>
+                                                            <span class="text-muted text-sm ml-1">(bạn)</span>
+                                                            <% } %>
+                                                </td>
+                                            </tr>
+                                            <% }); %>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Edit Modal -->
+                    <div class="modal-overlay" id="editModal" style="display:none">
+                        <div class="modal">
+                            <div class="modal-header">
+                                <h3>✏️ Sửa User</h3>
+                                <button class="modal-close" onclick="closeEditModal()">✕</button>
+                            </div>
+                            <form method="POST" id="editForm">
+                                <div class="modal-body">
+                                    <div class="form-group">
+                                        <label class="form-label">Username</label>
+                                        <input type="text" name="username" id="editUsername" class="form-control"
+                                            required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Mật khẩu mới (để trống = không đổi)</label>
+                                        <input type="password" name="password" class="form-control"
+                                            placeholder="••••••••">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Vai trò</label>
+                                        <select name="role" id="editRole" class="form-control">
+                                            <option value="uploader">📤 Uploader</option>
+                                            <option value="administrator">👑 Administrator</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-outline"
+                                        onclick="closeEditModal()">Hủy</button>
+                                    <button type="submit" class="btn btn-primary">Lưu thay đổi</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                    <script>
+                        function openEditModal(id, username, role) {
+                            document.getElementById('editUsername').value = username;
+                            document.getElementById('editRole').value = role;
+                            document.getElementById('editForm').action = '/users/edit/' + id;
+                            document.getElementById('editModal').style.display = 'flex';
+                        }
+                        function closeEditModal() {
+                            document.getElementById('editModal').style.display = 'none';
+                        }
+                    </script>
+
+                    <%- include('footer') %>
