@@ -374,8 +374,13 @@
                                 <div class="explorer-header">
                                     <span>🌲</span>
                                     <span class="explorer-header-title">Cây Thư mục</span>
-                                    <span class="ml-auto" style="font-size:0.78rem;color:var(--text-muted)">
-                                        Hover vào thư mục để thấy tùy chọn
+                                    <span class="ml-auto" style="display:flex;align-items:center;gap:6px">
+                                        <span style="font-size:0.78rem;color:var(--text-muted);margin-right:6px">Hover
+                                            để thấy tùy chọn</span>
+                                        <button class="action-btn" onclick="expandAll()" title="Mở rộng tất cả"
+                                            style="opacity:1;padding:3px 10px">⊞ Mở tất cả</button>
+                                        <button class="action-btn" onclick="collapseAll()" title="Thu gọn tất cả"
+                                            style="opacity:1;padding:3px 10px">⊟ Thu gọn</button>
                                     </span>
                                 </div>
 
@@ -399,9 +404,23 @@
                                                             style="font-weight:400;text-transform:none;letter-spacing:0;opacity:.6;margin-left:4px">
                                                             (<%= treeData.server.type %>)
                                                         </span>
+                                                        <% if (isAdmin) { %>
+                                                            <button class="action-btn success"
+                                                                style="opacity:1;margin-left:auto"
+                                                                onclick="openCreateModal(null,null,<%- treeData.server.id %>)"
+                                                                title="Tạo thư mục gốc trên server này">➕ Tạo thư mục
+                                                                gốc</button>
+                                                            <% } %>
                                                 </div>
-                                                <ul class="folder-tree"><%- renderTree(treeData.roots,
-                                                        treeData.server.id) %></ul>
+                                                <% if (treeData.roots.length===0) { %>
+                                                    <div
+                                                        style="padding:.75rem 1rem;font-size:.82rem;color:var(--text-muted);font-style:italic">
+                                                        📂 Chưa có thư mục nào trên server này
+                                                    </div>
+                                                    <% } else { %>
+                                                        <ul class="folder-tree"><%- renderTree(treeData.roots,
+                                                                treeData.server.id) %></ul>
+                                                        <% } %>
                                             </div>
                                             <% }); %>
                                                 <% } %>
@@ -516,14 +535,22 @@
                                     serverHid.value = serverId || '';
 
                                     if (parentId) {
-                                        title.textContent = 'Tao thu muc con';
+                                        title.textContent = 'Tạo thư mục con';
                                         breadcrumb.style.display = 'block';
                                         breadcrumbT.textContent = parentPath;
                                         serverGroup.style.display = 'none';
                                         serverSel.required = false;
-                                        pathHint.textContent = 'Se tao trong: ' + parentPath;
+                                        pathHint.textContent = 'Sẽ tạo trong: ' + parentPath;
+                                    } else if (serverId) {
+                                        // Called from inline button on server header — pre-select server
+                                        title.textContent = 'Tạo thư mục gốc';
+                                        breadcrumb.style.display = 'none';
+                                        serverSel.value = String(serverId);
+                                        serverGroup.style.display = 'none';
+                                        serverSel.required = false;
+                                        pathHint.textContent = '';
                                     } else {
-                                        title.textContent = 'Tao thu muc goc';
+                                        title.textContent = 'Tạo thư mục gốc';
                                         breadcrumb.style.display = 'none';
                                         serverGroup.style.display = 'block';
                                         serverSel.required = true;
@@ -551,14 +578,63 @@
                                     }, 80);
                                 }
 
+                                var STORAGE_KEY = 'folderTreeOpen';
+
+                                function getOpenSet() {
+                                    try { return new Set(JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')); }
+                                    catch (e) { return new Set(); }
+                                }
+
+                                function saveOpenSet(set) {
+                                    try { localStorage.setItem(STORAGE_KEY, JSON.stringify([...set])); } catch (e) { }
+                                }
+
                                 function toggleNode(btn) {
                                     var li = btn.closest('.folder-node');
                                     var childList = li.querySelector('.children-list');
                                     if (!childList) return;
+                                    var folderId = btn.dataset.folderId;
                                     var collapsed = childList.classList.toggle('collapsed');
-                                    if (collapsed) btn.classList.remove('open');
-                                    else btn.classList.add('open');
+                                    btn.classList.toggle('open', !collapsed);
+                                    var openSet = getOpenSet();
+                                    if (collapsed) openSet.delete(folderId);
+                                    else openSet.add(folderId);
+                                    saveOpenSet(openSet);
                                 }
+
+                                function expandAll() {
+                                    var openSet = getOpenSet();
+                                    document.querySelectorAll('.children-list').forEach(function (ul) {
+                                        ul.classList.remove('collapsed');
+                                        var pid = ul.dataset.parentId;
+                                        if (pid) openSet.add(pid);
+                                    });
+                                    document.querySelectorAll('.toggle-btn').forEach(function (b) { b.classList.add('open'); });
+                                    saveOpenSet(openSet);
+                                }
+
+                                function collapseAll() {
+                                    document.querySelectorAll('.children-list').forEach(function (ul) {
+                                        ul.classList.add('collapsed');
+                                    });
+                                    document.querySelectorAll('.toggle-btn').forEach(function (b) { b.classList.remove('open'); });
+                                    saveOpenSet(new Set());
+                                }
+
+                                // Restore saved states on load (inline script runs after DOM is ready)
+                                (function restoreTree() {
+                                    var openSet = getOpenSet();
+                                    openSet.forEach(function (folderId) {
+                                        var btn = document.querySelector('.toggle-btn[data-folder-id="' + folderId + '"]');
+                                        if (!btn) return;
+                                        var li = btn.closest('.folder-node');
+                                        var childList = li && li.querySelector('.children-list');
+                                        if (childList) {
+                                            childList.classList.remove('collapsed');
+                                            btn.classList.add('open');
+                                        }
+                                    });
+                                })();
 
                                 (function () {
                                     var p = new URLSearchParams(location.search);

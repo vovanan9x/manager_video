@@ -76,6 +76,18 @@ function initDatabase() {
       key TEXT PRIMARY KEY,
       value TEXT
     );
+
+    CREATE TABLE IF NOT EXISTS error_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      type TEXT NOT NULL DEFAULT 'upload',
+      video_id INTEGER,
+      video_title TEXT,
+      server_id INTEGER,
+      server_label TEXT,
+      message TEXT NOT NULL,
+      stack TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 
   // Seed default admin user
@@ -95,4 +107,15 @@ function initDatabase() {
 
 initDatabase();
 
+function addErrorLog(type, { video_id, video_title, server_id, server_label, message, stack } = {}) {
+  try {
+    db.prepare(
+      'INSERT INTO error_logs (type, video_id, video_title, server_id, server_label, message, stack) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    ).run(type, video_id || null, video_title || null, server_id || null, server_label || null, message || 'Unknown error', stack || null);
+  } catch (e) {
+    console.error('[ErrorLog] Failed to write error log:', e.message);
+  }
+}
+
 module.exports = db;
+module.exports.addErrorLog = addErrorLog;

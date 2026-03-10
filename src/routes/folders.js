@@ -4,7 +4,7 @@ const db = require('../config/database');
 const { requireAuth } = require('../middleware/auth');
 
 // Helper: generate folder tree HTML (called as EJS local function)
-function renderTree(nodes, serverId) {
+function renderTree(nodes, serverId, isAdmin) {
     if (!nodes || nodes.length === 0) return '';
     let html = '';
     for (const node of nodes) {
@@ -18,31 +18,32 @@ function renderTree(nodes, serverId) {
             .replace(/'/g, '&#39;');
         const safeName = esc(node.name);
         const safePath = esc(node.path);
-        // JS-safe strings for onclick attributes
         const jsName = node.name.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
         const jsPath = node.path.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 
         html += `<li class="folder-node" data-id="${node.id}">`;
         html += `<div class="folder-row">`;
         html += hasKids
-            ? `<button class="toggle-btn open" onclick="toggleNode(this)" title="Thu gọn/Mở rộng">&#9658;</button>`
+            ? `<button class="toggle-btn" onclick="toggleNode(this)" title="Thu gọn/Mở rộng" data-folder-id="${node.id}">&#9658;</button>`
             : `<span class="toggle-placeholder"></span>`;
         html += `<span class="folder-icon">📁</span>`;
         html += `<span class="folder-name">${safeName}</span>`;
         html += `<span class="folder-path-chip" title="${safePath}">${safePath}</span>`;
         html += `<div class="folder-actions">`;
-        // ➕ Tạo thư mục con
-        html += `<button class="action-btn success" onclick="openCreateModal(${node.id},'${jsPath}',${sid})" title="Tạo thư mục con">➕ <span>Tạo con</span></button>`;
-        // ✏️ Đổi tên
-        html += `<button class="action-btn" onclick="openRename(${node.id},'${jsName}','${jsPath}')" title="Đổi tên">✏️ <span>Đổi tên</span></button>`;
-        // 🗑️ Xóa
-        html += `<form method="POST" action="/folders/delete/${node.id}" style="display:inline" `
-            + `onsubmit="return confirm('Xóa thư mục \\'${jsName}\\'? Không thể hoàn tác.')">`;
-        html += `<button type="submit" class="action-btn danger" title="Xóa">🗑️ <span>Xóa</span></button>`;
-        html += `</form>`;
+        if (isAdmin) {
+            // ➕ Tạo thư mục con
+            html += `<button class="action-btn success" onclick="openCreateModal(${node.id},'${jsPath}',${sid})" title="Tạo thư mục con">➕ <span>Tạo con</span></button>`;
+            // ✏️ Đổi tên
+            html += `<button class="action-btn" onclick="openRename(${node.id},'${jsName}','${jsPath}')" title="Đổi tên">✏️ <span>Đổi tên</span></button>`;
+            // 🗑️ Xóa
+            html += `<form method="POST" action="/folders/delete/${node.id}" style="display:inline" `
+                + `onsubmit="return confirm('Xóa thư mục \\'${jsName}\\'? Không thể hoàn tác.')">`;
+            html += `<button type="submit" class="action-btn danger" title="Xóa">🗑️ <span>Xóa</span></button>`;
+            html += `</form>`;
+        }
         html += `</div></div>`;
         if (hasKids) {
-            html += `<ul class="folder-tree children-list">${renderTree(node.children, sid)}</ul>`;
+            html += `<ul class="folder-tree children-list collapsed" data-parent-id="${node.id}">${renderTree(node.children, sid, isAdmin)}</ul>`;
         }
         html += `</li>`;
     }
@@ -61,7 +62,7 @@ function buildFolderTrees(servers, folders) {
             else roots.push(byId[f.id]);
         });
         return { server, roots };
-    }).filter(t => t.roots.length > 0);
+    });
 }
 
 const ERROR_MESSAGES = {
@@ -70,6 +71,7 @@ const ERROR_MESSAGES = {
     duplicate: '⚠️ Thư mục đã tồn tại.',
     notfound: '⚠️ Không tìm thấy thư mục.',
     notempty: '⚠️ Thư mục còn video hoặc thư mục con, không thể xóa.',
+    permission: '⚠️ Bạn không có quyền thực hiện thao tác này.',
 };
 
 // GET /folders
@@ -77,6 +79,7 @@ router.get('/', requireAuth, (req, res) => {
     const servers = db.prepare('SELECT * FROM servers WHERE is_active = 1 ORDER BY name').all();
     const folders = db.prepare('SELECT f.*, s.name as server_name FROM folders f LEFT JOIN servers s ON f.server_id = s.id ORDER BY f.server_id, f.path').all();
     const folderTrees = buildFolderTrees(servers, folders);
+    const isAdmin = req.session.user.role === 'administrator';
     const errCode = req.query.error || null;
     res.render('folders', {
         user: req.session.user,
@@ -84,10 +87,11 @@ router.get('/', requireAuth, (req, res) => {
         servers,
         folders,
         folderTrees,
-        renderTree,
+        renderTree: (nodes, serverId) => renderTree(nodes, serverId, isAdmin),
         foldersJson: JSON.stringify(folders),
         queryError: errCode ? (ERROR_MESSAGES[errCode] || '⚠️ Lỗi không xác định.') : null,
-        querySuccess: req.query.success ? true : null
+        querySuccess: req.query.success ? true : null,
+        isAdmin,
     });
 });
 
@@ -142,8 +146,11 @@ router.post('/rename/:id', requireAuth, (req, res) => {
     res.redirect('/folders?success=renamed');
 });
 
-// POST /folders/delete/:id
+// POST /folders/delete/:id — admin only
 router.post('/delete/:id', requireAuth, (req, res) => {
+    if (req.session.user.role !== 'administrator') {
+        return res.redirect('/folders?error=permission');
+    }
     const folder = db.prepare('SELECT * FROM folders WHERE id = ?').get(req.params.id);
     if (!folder) return res.redirect('/folders?error=notfound');
 

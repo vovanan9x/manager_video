@@ -81,7 +81,7 @@ router.post('/upload/local', requireAuth, upload.single('video'), async (req, re
 
     const folder = folder_id ? db.prepare('SELECT * FROM folders WHERE id = ?').get(folder_id) : null;
     const filename = req.file.filename;
-    const remotePath = (folder ? folder.path + '/' : '') + filename;
+    const remotePath = (folder ? 'f' + folder.id + '/' : '') + filename;
 
     const stmt = db.prepare(
         'INSERT INTO videos (title, description, genre, filename, original_name, folder_id, server_id, uploaded_by, status, source_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
@@ -108,7 +108,7 @@ router.post('/upload/remote', requireAuth, async (req, res) => {
     const folder = folder_id ? db.prepare('SELECT * FROM folders WHERE id = ?').get(folder_id) : null;
     const ext = path.extname(url.split('?')[0]) || '.mp4';
     const filename = crypto.randomUUID() + ext;
-    const remotePath = (folder ? folder.path + '/' : '') + filename;
+    const remotePath = (folder ? 'f' + folder.id + '/' : '') + filename;
 
     const stmt = db.prepare(
         'INSERT INTO videos (title, description, genre, filename, original_name, folder_id, server_id, uploaded_by, status, source_type, source_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
@@ -158,13 +158,13 @@ router.post('/edit/:id', requireAuth, (req, res) => {
     res.redirect('/videos?success=updated');
 });
 
-// POST /videos/delete/:id
+// POST /videos/delete/:id — admin only
 router.post('/delete/:id', requireAuth, async (req, res) => {
+    if (req.session.user.role !== 'administrator') {
+        return res.status(403).json({ error: 'Chỉ admin mới có quyền xóa video' });
+    }
     const video = db.prepare('SELECT v.*, s.type as server_type, s.root_path, s.host, s.port, s.username as s_username, s.password as s_password FROM videos v LEFT JOIN servers s ON v.server_id = s.id WHERE v.id = ?').get(req.params.id);
     if (!video) return res.json({ success: false });
-    if (video.uploaded_by !== req.session.user.id && req.session.user.role !== 'administrator') {
-        return res.status(403).json({ error: 'Không có quyền' });
-    }
 
     // Stop if uploading
     stopUpload(parseInt(req.params.id));

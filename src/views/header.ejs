@@ -64,11 +64,24 @@
                         <span class="nav-icon">👥</span>
                         <span class="nav-label">Users</span>
                     </a>
+                    <a href="/errors" class="nav-item <%= activePage === 'errors' ? 'active' : '' %>">
+                        <span class="nav-icon">🚨</span>
+                        <span class="nav-label">Nhật ký Lỗi</span>
+                    </a>
+                    <a href="/api-docs" class="nav-item <%= activePage === 'api-docs' ? 'active' : '' %>">
+                        <span class="nav-icon">📡</span>
+                        <span class="nav-label">API Docs</span>
+                    </a>
+                    <a href="/settings" class="nav-item <%= activePage === 'settings' ? 'active' : '' %>">
+                        <span class="nav-icon">⚙️</span>
+                        <span class="nav-label">Cài đặt</span>
+                    </a>
                     <% } %>
-                        <a href="/settings" class="nav-item <%= activePage === 'settings' ? 'active' : '' %>">
-                            <span class="nav-icon">⚙️</span>
-                            <span class="nav-label">Cài đặt</span>
+                        <a href="/server-guide" class="nav-item <%= activePage === 'server-guide' ? 'active' : '' %>">
+                            <span class="nav-icon">📖</span>
+                            <span class="nav-label">Hướng dẫn Server</span>
                         </a>
+
             </nav>
 
             <div class="sidebar-footer">

@@ -31,6 +31,22 @@ app.use('/folders', require('./routes/folders'));
 app.use('/servers', require('./routes/servers'));
 app.use('/settings', require('./routes/settings'));
 app.use('/api', require('./routes/api'));
+// app.use('/stream', require('./routes/stream')); // Stream proxy disabled
+app.use('/errors', require('./routes/errors'));
+
+// API Docs page — admin only
+const { requireAuth, requireAdmin } = require('./middleware/auth');
+const db = require('./config/database');
+app.get('/api-docs', requireAdmin, (req, res) => {
+    const settingRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('domain');
+    const settings = { domain: settingRow ? settingRow.value : '' };
+    res.render('api_docs', { user: req.session.user, activePage: 'api-docs', settings });
+});
+
+// Server Guide page — all authenticated users
+app.get('/server-guide', requireAuth, (req, res) => {
+    res.render('server_guide', { user: req.session.user, activePage: 'server-guide' });
+});
 
 // 404
 app.use((req, res) => {

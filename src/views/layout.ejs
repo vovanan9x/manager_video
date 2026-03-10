@@ -1,13 +1,17 @@
 <!DOCTYPE html>
 <html lang="vi">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title><%= typeof pageTitle !== 'undefined' ? pageTitle : 'Video Manager' %></title>
+  <title>
+    <%= typeof pageTitle !=='undefined' ? pageTitle : 'Video Manager' %>
+  </title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/main.css">
 </head>
+
 <body>
   <div class="app-layout">
     <!-- Sidebar -->
@@ -21,10 +25,16 @@
       </div>
 
       <div class="user-info">
-        <div class="user-avatar"><%= user.username.charAt(0).toUpperCase() %></div>
+        <div class="user-avatar">
+          <%= user.username.charAt(0).toUpperCase() %>
+        </div>
         <div class="user-details">
-          <div class="user-name"><%= user.username %></div>
-          <div class="user-role badge-<%= user.role %>"><%= user.role === 'administrator' ? '👑 Admin' : '📤 Uploader' %></div>
+          <div class="user-name">
+            <%= user.username %>
+          </div>
+          <div class="user-role badge-<%= user.role %>">
+            <%= user.role==='administrator' ? '👑 Admin' : '📤 Uploader' %>
+          </div>
         </div>
       </div>
 
@@ -45,20 +55,28 @@
           <span class="nav-icon">📁</span>
           <span class="nav-label">Thư mục</span>
         </a>
-        <% if (user.role === 'administrator') { %>
-        <a href="/servers" class="nav-item <%= activePage === 'servers' ? 'active' : '' %>">
-          <span class="nav-icon">🖥️</span>
-          <span class="nav-label">Servers</span>
-        </a>
-        <a href="/users" class="nav-item <%= activePage === 'users' ? 'active' : '' %>">
-          <span class="nav-icon">👥</span>
-          <span class="nav-label">Users</span>
-        </a>
-        <% } %>
-        <a href="/settings" class="nav-item <%= activePage === 'settings' ? 'active' : '' %>">
-          <span class="nav-icon">⚙️</span>
-          <span class="nav-label">Cài đặt</span>
-        </a>
+        <% if (user.role==='administrator' ) { %>
+          <a href="/servers" class="nav-item <%= activePage === 'servers' ? 'active' : '' %>">
+            <span class="nav-icon">🖥️</span>
+            <span class="nav-label">Servers</span>
+          </a>
+          <a href="/users" class="nav-item <%= activePage === 'users' ? 'active' : '' %>">
+            <span class="nav-icon">👥</span>
+            <span class="nav-label">Users</span>
+          </a>
+          <a href="/errors" class="nav-item <%= activePage === 'errors' ? 'active' : '' %>">
+            <span class="nav-icon">🚨</span>
+            <span class="nav-label">Nhật ký Lỗi</span>
+          </a>
+          <% } %>
+            <a href="/settings" class="nav-item <%= activePage === 'settings' ? 'active' : '' %>">
+              <span class="nav-icon">⚙️</span>
+              <span class="nav-label">Cài đặt</span>
+            </a>
+            <a href="/server-guide" class="nav-item <%= activePage === 'server-guide' ? 'active' : '' %>">
+              <span class="nav-icon">📖</span>
+              <span class="nav-label">Hướng dẫn Server</span>
+            </a>
       </nav>
 
       <div class="sidebar-footer">
@@ -78,4 +96,5 @@
   </div>
   <script src="/js/app.js"></script>
 </body>
+
 </html>

@@ -4,6 +4,7 @@ const axios = require('axios');
 const SftpClient = require('ssh2-sftp-client');
 const { EventEmitter } = require('events');
 const db = require('../config/database');
+const { addErrorLog } = require('../config/database');
 
 // Global map of active uploads: videoId -> { abort, type }
 const activeUploads = new Map();
@@ -61,6 +62,16 @@ async function uploadToServer(videoId, localFilePath, server, remotePath) {
     } catch (err) {
         if (!controller.cancelled) {
             console.error('[Upload Error]', err.message);
+            // Get video + server info for error log
+            const videoRow = db.prepare('SELECT v.title, v.server_id, s.name as server_name FROM videos v LEFT JOIN servers s ON v.server_id = s.id WHERE v.id = ?').get(videoId);
+            addErrorLog('upload', {
+                video_id: videoId,
+                video_title: videoRow ? videoRow.title : null,
+                server_id: videoRow ? videoRow.server_id : null,
+                server_label: videoRow ? videoRow.server_name : null,
+                message: err.message,
+                stack: err.stack,
+            });
             emitProgress(videoId, 0, 'error');
         }
     } finally {
@@ -103,38 +114,66 @@ async function uploadLocal(videoId, localFilePath, server, remotePath, controlle
 }
 
 async function uploadSftp(videoId, localFilePath, server, remotePath, controller) {
-    const sftp = new SftpClient();
-    activeUploads.get(videoId).sftp = sftp;
-
-    await sftp.connect({
-        host: server.host,
-        port: server.port || 22,
-        username: server.username,
-        password: server.password,
-    });
-
     const fileSize = fs.statSync(localFilePath).size;
     const remoteFullPath = server.root_path.replace(/\\/g, '/') + '/' + remotePath.replace(/\\/g, '/');
     const remoteDir = path.dirname(remoteFullPath).replace(/\\/g, '/');
 
-    try { await sftp.mkdir(remoteDir, true); } catch (_) { }
+    const buildConnOpts = () => {
+        const opts = {
+            host: server.host,
+            port: server.port || 22,
+            username: server.username,
+            keepaliveInterval: 10000,   // send keepalive every 10s
+            keepaliveCountMax: 10,      // allow 10 missed keepalives before disconnect
+            readyTimeout: 30000,
+        };
+        if (server.private_key) {
+            opts.privateKey = server.private_key;
+            if (server.password) opts.passphrase = server.password;
+        } else if (server.password) {
+            opts.password = server.password;
+        }
+        return opts;
+    };
 
-    let transferred = 0;
-    const readStream = fs.createReadStream(localFilePath);
-    readStream.on('data', chunk => {
-        if (controller.cancelled) { readStream.destroy(); return; }
-        transferred += chunk.length;
-        const pct = Math.floor((transferred / fileSize) * 100);
-        emitProgress(videoId, pct, 'uploading');
-    });
+    const MAX_RETRIES = 3;
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        if (controller.cancelled) break;
+        const sftp = new SftpClient();
+        activeUploads.get(videoId).sftp = sftp;
+        try {
+            await sftp.connect(buildConnOpts());
+            try { await sftp.mkdir(remoteDir, true); } catch (_) { }
 
-    if (!controller.cancelled) {
-        await sftp.put(readStream, remoteFullPath);
-        db.prepare('UPDATE videos SET remote_path = ?, file_size = ? WHERE id = ?').run(remotePath, fileSize, videoId);
+            let transferred = 0;
+            const readStream = fs.createReadStream(localFilePath);
+            readStream.on('data', chunk => {
+                if (controller.cancelled) { readStream.destroy(); return; }
+                transferred += chunk.length;
+                const pct = Math.floor((transferred / fileSize) * 100);
+                emitProgress(videoId, pct, 'uploading');
+            });
+
+            if (!controller.cancelled) {
+                await sftp.put(readStream, remoteFullPath);
+                db.prepare('UPDATE videos SET remote_path = ?, file_size = ? WHERE id = ?').run(remotePath, fileSize, videoId);
+            }
+            await sftp.end();
+            return; // success — exit retry loop
+        } catch (err) {
+            try { await sftp.end(); } catch (_) { }
+            const isResetError = err.message && (err.message.includes('ECONNRESET') || err.message.includes('ETIMEDOUT') || err.message.includes('ECONNREFUSED'));
+            if (isResetError && attempt < MAX_RETRIES && !controller.cancelled) {
+                console.log(`[SFTP Retry] Attempt ${attempt} failed (${err.message}), retrying in 3s...`);
+                emitProgress(videoId, 0, 'uploading');
+                await new Promise(r => setTimeout(r, 3000));
+                continue;
+            }
+            throw err; // non-retryable or max retries reached
+        }
     }
-
-    await sftp.end();
 }
+
 
 async function uploadHttp(videoId, localFilePath, server, remotePath, controller) {
     const FormData = require('form-data');
@@ -185,12 +224,18 @@ async function fetchRemoteVideo(videoId, url, server, remotePath, controller) {
         if (server.type === 'sftp') {
             const sftp = new SftpClient();
             activeUploads.get(videoId).sftp = sftp;
-            await sftp.connect({
+            const connOpts2 = {
                 host: server.host,
                 port: server.port || 22,
                 username: server.username,
-                password: server.password,
-            });
+            };
+            if (server.private_key) {
+                connOpts2.privateKey = server.private_key;
+                if (server.password) connOpts2.passphrase = server.password;
+            } else if (server.password) {
+                connOpts2.password = server.password;
+            }
+            await sftp.connect(connOpts2);
 
             const remoteFullPath = server.root_path.replace(/\\/g, '/') + '/' + remotePath.replace(/\\/g, '/');
             const remoteDir = path.dirname(remoteFullPath).replace(/\\/g, '/');
@@ -245,6 +290,15 @@ async function fetchRemoteVideo(videoId, url, server, remotePath, controller) {
     } catch (err) {
         if (!controller.cancelled) {
             console.error('[Remote Fetch Error]', err.message);
+            const videoRow = db.prepare('SELECT v.title, v.server_id, s.name as server_name FROM videos v LEFT JOIN servers s ON v.server_id = s.id WHERE v.id = ?').get(videoId);
+            addErrorLog('remote_fetch', {
+                video_id: videoId,
+                video_title: videoRow ? videoRow.title : null,
+                server_id: videoRow ? videoRow.server_id : null,
+                server_label: videoRow ? videoRow.server_name : null,
+                message: err.message,
+                stack: err.stack,
+            });
             emitProgress(videoId, 0, 'error');
         }
     } finally {
@@ -272,4 +326,5 @@ module.exports = {
     addSseClient,
     removeSseClient,
     uploadEmitter,
+    emitProgress,
 };

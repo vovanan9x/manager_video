@@ -1,0 +1,243 @@
+<%- include('header') %>
+
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">🚨 Nhật ký Lỗi Upload</h1>
+            <p class="text-muted text-sm">Tổng cộng <strong id="totalCount">
+                    <%= totalCount %>
+                </strong> lỗi đã được ghi nhận</p>
+        </div>
+        <div class="action-buttons">
+            <% if (filters.type) { %>
+                <button class="btn btn-warning" onclick="clearLogs('<%= filters.type %>')">🗑️ Xóa lỗi "<%= filters.type
+                        %>"</button>
+                <% } %>
+                    <button class="btn btn-danger" onclick="clearLogs()">🗑️ Xóa tất cả</button>
+        </div>
+    </div>
+
+    <!-- Filter bar -->
+    <div class="card filter-card mb-3">
+        <div class="filter-row">
+            <select id="filterType" class="form-control form-control-sm" onchange="applyFilters()">
+                <option value="">🔎 Tất cả loại lỗi</option>
+                <% types.forEach(function(t) { %>
+                    <option value="<%= t %>" <%=filters.type===t ? 'selected' : '' %>><%= t %>
+                    </option>
+                    <% }); %>
+            </select>
+            <select id="filterLimit" class="form-control form-control-sm" onchange="applyFilters()">
+                <option value="50" <%=(filters.limit || '100' )==='50' ? 'selected' : '' %>>50 lỗi gần nhất</option>
+                <option value="100" <%=(filters.limit || '100' )==='100' ? 'selected' : '' %>>100 lỗi gần nhất</option>
+                <option value="250" <%=(filters.limit || '100' )==='250' ? 'selected' : '' %>>250 lỗi gần nhất</option>
+                <option value="500" <%=(filters.limit || '100' )==='500' ? 'selected' : '' %>>500 lỗi gần nhất</option>
+            </select>
+            <button class="btn btn-sm btn-outline" onclick="clearFilters()">✕ Xóa lọc</button>
+        </div>
+    </div>
+
+    <!-- Error logs table -->
+    <div class="card">
+        <div class="card-body p-0">
+            <% if (errors.length===0) { %>
+                <div class="empty-state">
+                    <div class="empty-icon">✅</div>
+                    <p>Không có lỗi nào! Hệ thống đang hoạt động bình thường.</p>
+                </div>
+                <% } else { %>
+                    <table class="table video-table" id="errorsTable">
+                        <thead>
+                            <tr>
+                                <th style="width:50px">#</th>
+                                <th style="width:120px">Loại</th>
+                                <th>Video</th>
+                                <th>Server</th>
+                                <th>Thông báo lỗi</th>
+                                <th style="width:140px">Thời gian</th>
+                                <th style="width:80px">Thao tác</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <% errors.forEach(function(e, idx) { %>
+                                <tr id="err-row-<%= e.id %>">
+                                    <td class="text-muted text-sm">
+                                        <%= e.id %>
+                                    </td>
+                                    <td>
+                                        <span class="type-badge type-<%= e.type %>">
+                                            <%= e.type %>
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <% if (e.video_id) { %>
+                                            <a href="/videos?video_id=<%= e.video_id %>" class="text-sm"
+                                                style="color:var(--accent)">
+                                                #<%= e.video_id %> — <%= e.video_title || e.video_title_live
+                                                        || '(đã xóa)' %>
+                                            </a>
+                                            <% } else { %>
+                                                <span class="text-muted text-sm">—</span>
+                                                <% } %>
+                                    </td>
+                                    <td class="text-muted text-sm">
+                                        <%= e.server_label || '—' %>
+                                    </td>
+                                    <td>
+                                        <div class="error-msg">
+                                            <%= e.message %>
+                                        </div>
+                                        <% if (e.stack) { %>
+                                            <button class="btn btn-sm btn-outline mt-1"
+                                                onclick="toggleStack(<%= e.id %>)" style="font-size:11px">📋 Stack
+                                                trace</button>
+                                            <pre class="stack-trace" id="stack-<%= e.id %>"
+                                                style="display:none"><%= e.stack %></pre>
+                                            <% } %>
+                                    </td>
+                                    <td class="text-muted text-sm">
+                                        <%= new Date(e.created_at).toLocaleString('vi-VN') %>
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-sm btn-danger" onclick="deleteLog(<%= e.id %>)"
+                                            title="Xóa log này">🗑️</button>
+                                    </td>
+                                </tr>
+                                <% }); %>
+                        </tbody>
+                    </table>
+                    <% } %>
+        </div>
+    </div>
+
+    <style>
+        .type-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .type-upload {
+            background: rgba(239, 68, 68, 0.2);
+            color: #f87171;
+        }
+
+        .type-remote_fetch {
+            background: rgba(249, 115, 22, 0.2);
+            color: #fb923c;
+        }
+
+        .type-sftp {
+            background: rgba(168, 85, 247, 0.2);
+            color: #c084fc;
+        }
+
+        .type-encode {
+            background: rgba(234, 179, 8, 0.2);
+            color: #facc15;
+        }
+
+        .type-r2 {
+            background: rgba(59, 130, 246, 0.2);
+            color: #60a5fa;
+        }
+
+        .type-thumb {
+            background: rgba(20, 184, 166, 0.2);
+            color: #2dd4bf;
+        }
+
+        .error-msg {
+            font-family: 'Consolas', monospace;
+            font-size: 12px;
+            color: #f87171;
+            word-break: break-all;
+            max-width: 420px;
+        }
+
+        .stack-trace {
+            margin-top: 6px;
+            padding: 10px 12px;
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 6px;
+            font-size: 11px;
+            font-family: 'Consolas', monospace;
+            color: #a1a1aa;
+            white-space: pre-wrap;
+            word-break: break-all;
+            max-height: 240px;
+            overflow-y: auto;
+            animation: fadeIn 0.2s ease;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(-4px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .filter-card .filter-row {
+            gap: 8px;
+        }
+    </style>
+
+    <script>
+        function toggleStack(id) {
+            const el = document.getElementById('stack-' + id);
+            if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+        }
+
+        async function deleteLog(id) {
+            if (!confirm('Xóa log lỗi này?')) return;
+            const res = await fetch('/errors/delete/' + id, { method: 'POST' });
+            const data = await res.json();
+            if (data.success) {
+                const row = document.getElementById('err-row-' + id);
+                if (row) row.remove();
+                const cnt = document.getElementById('totalCount');
+                if (cnt) cnt.textContent = Math.max(0, parseInt(cnt.textContent) - 1);
+                showToast('✅ Đã xóa log lỗi');
+            }
+        }
+
+        async function clearLogs(type) {
+            const label = type ? `tất cả lỗi loại "${type}"` : 'tất cả log lỗi';
+            if (!confirm(`Xóa ${label}? Hành động này không thể hoàn tác.`)) return;
+            const body = type ? `type=${encodeURIComponent(type)}` : '';
+            const res = await fetch('/errors/clear', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body,
+            });
+            const data = await res.json();
+            if (data.success) {
+                showToast('✅ Đã xóa log lỗi');
+                setTimeout(() => location.reload(), 600);
+            }
+        }
+
+        function applyFilters() {
+            const t = document.getElementById('filterType').value;
+            const l = document.getElementById('filterLimit').value;
+            const params = new URLSearchParams();
+            if (t) params.set('type', t);
+            if (l) params.set('limit', l);
+            window.location.search = params.toString();
+        }
+
+        function clearFilters() {
+            window.location.search = '';
+        }
+    </script>
+
+    <%- include('footer') %>

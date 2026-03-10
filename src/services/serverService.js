@@ -17,13 +17,19 @@ async function testConnection(server) {
     if (server.type === 'sftp') {
         const sftp = new SftpClient();
         try {
-            await sftp.connect({
+            const connOpts = {
                 host: server.host,
                 port: server.port || 22,
                 username: server.username,
-                password: server.password,
-                readyTimeout: 5000,
-            });
+                readyTimeout: 8000,
+            };
+            if (server.private_key) {
+                connOpts.privateKey = server.private_key;
+                if (server.password) connOpts.passphrase = server.password; // password = passphrase for key
+            } else if (server.password) {
+                connOpts.password = server.password;
+            }
+            await sftp.connect(connOpts);
             await sftp.end();
             return { ok: true, message: 'SFTP connection successful' };
         } catch (err) {

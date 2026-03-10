@@ -118,11 +118,19 @@
                                                     <% } %>
                                                         <a href="/videos/edit/<%= v.id %>"
                                                             class="btn btn-sm btn-outline" title="Sửa">✏️</a>
-                                                        <button class="btn btn-sm btn-outline"
-                                                            onclick="copyLink(<%= v.id %>)" title="Lấy link">🔗</button>
-                                                        <button class="btn btn-sm btn-danger"
-                                                            onclick="deleteVideo(<%= v.id %>, '<%= v.title.replace(/'/g, "") %>')"
-                                                            title="Xóa">🗑️</button>
+                                                        <% if (v.status==='done' && v.remote_path) { %>
+                                                            <button class="btn btn-sm btn-outline"
+                                                                onclick="watchVideo(<%= v.id %>)"
+                                                                title="Xem video">▶️</button>
+                                                            <button class="btn btn-sm btn-outline"
+                                                                onclick="copyLink(<%= v.id %>)"
+                                                                title="Copy link">🔗</button>
+                                                            <% } %>
+                                                                <% if (user.role==='administrator' ) { %>
+                                                                    <button class="btn btn-sm btn-danger"
+                                                                        onclick="deleteVideo(<%= v.id %>, '<%= v.title.replace(/'/g, "") %>')"
+                                                                        title="Xóa">🗑️</button>
+                                                                    <% } %>
                                             </div>
                                         </td>
                                     </tr>
@@ -132,6 +140,51 @@
                         <% } %>
             </div>
         </div>
+
+        <!-- ===== Modal: Xác nhận xóa video ===== -->
+        <div id="deleteModal"
+            style="position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1000;align-items:center;justify-content:center;backdrop-filter:blur(4px)">
+            <div
+                style="background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:14px;width:420px;max-width:95vw;box-shadow:0 24px 70px rgba(0,0,0,.5);animation:modal-del-in .17s ease">
+                <div
+                    style="padding:1.2rem 1.4rem;border-bottom:1px solid var(--border-color);display:flex;align-items:center;gap:.6rem">
+                    <span style="font-size:1.3rem">🗑️</span>
+                    <h3 style="margin:0;font-size:1rem;font-weight:600">Xác nhận xóa video</h3>
+                </div>
+                <div style="padding:1.4rem">
+                    <p style="margin:0;color:var(--text-secondary);font-size:.92rem">Bạn chắc chắn muốn xóa
+                        video<br><strong id="deleteModalTitle" style="color:var(--text-primary)"></strong>?</p>
+                    <p style="margin:.75rem 0 0;font-size:.8rem;color:#f87171">⚠️ Hành động này không thể hoàn tác. File
+                        trên server cũng sẽ bị xóa.</p>
+                </div>
+                <div
+                    style="padding:1rem 1.4rem;border-top:1px solid var(--border-color);display:flex;justify-content:flex-end;gap:.75rem">
+                    <button id="deleteCancelBtn" class="btn btn-outline">Hủy</button>
+                    <button id="deleteConfirmBtn" class="btn btn-danger">🗑️ Xóa video</button>
+                </div>
+            </div>
+        </div>
+        <style>
+            #deleteModal {
+                display: none;
+            }
+
+            #deleteModal.is-open {
+                display: flex;
+            }
+
+            @keyframes modal-del-in {
+                from {
+                    opacity: 0;
+                    transform: scale(.96) translateY(-8px);
+                }
+
+                to {
+                    opacity: 1;
+                    transform: none;
+                }
+            }
+        </style>
 
         <script>
             function formatBytes(b) {
@@ -171,19 +224,53 @@
                     if (data.success) location.reload();
                 }
 
-            async function deleteVideo(id, title) {
-                if (!confirm('Xóa video "' + title + '"? Hành động này không thể hoàn tác.')) return;
-                const res = await fetch('/videos/delete/' + id, { method: 'POST' });
-                const data = await res.json();
-                if (data.success) document.getElementById('video-row-' + id).remove();
-                else alert('Lỗi xóa video');
+            let _deleteTargetId = null;
+            function deleteVideo(id, title) {
+                _deleteTargetId = id;
+                document.getElementById('deleteModalTitle').textContent = '"' + title + '"';
+                document.getElementById('deleteModal').classList.add('is-open');
             }
+            document.getElementById('deleteModal').addEventListener('click', function (e) {
+                if (e.target === this) this.classList.remove('is-open');
+            });
+            document.getElementById('deleteConfirmBtn').addEventListener('click', async function () {
+                if (!_deleteTargetId) return;
+                const id = _deleteTargetId;
+                _deleteTargetId = null;
+                document.getElementById('deleteModal').classList.remove('is-open');
+                try {
+                    const res = await fetch('/videos/delete/' + id, { method: 'POST' });
+                    const data = await res.json();
+                    if (data.success) {
+                        const row = document.getElementById('video-row-' + id);
+                        if (row) row.remove();
+                    } else {
+                        alert('Lỗi xóa video: ' + (data.error || 'Không xác định'));
+                    }
+                } catch (e) {
+                    alert('Lỗi kết nối khi xóa video');
+                }
+            });
+            document.getElementById('deleteCancelBtn').addEventListener('click', function () {
+                _deleteTargetId = null;
+                document.getElementById('deleteModal').classList.remove('is-open');
+            });
 
             async function copyLink(id) {
                 const res = await fetch('/api/videos/' + id + '/link');
                 const data = await res.json();
                 if (data.video && data.video.link) {
                     navigator.clipboard.writeText(data.video.link).then(() => showToast('✅ Đã copy link!'));
+                } else {
+                    alert('Video chưa có link (chưa upload xong)');
+                }
+            }
+
+            async function watchVideo(id) {
+                const res = await fetch('/api/videos/' + id + '/link');
+                const data = await res.json();
+                if (data.video && data.video.link) {
+                    window.open(data.video.link, '_blank');
                 } else {
                     alert('Video chưa có link (chưa upload xong)');
                 }

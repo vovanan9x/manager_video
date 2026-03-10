@@ -1,0 +1,1465 @@
+<%- include('header') %>
+
+    <style>
+        .guide-layout {
+            display: grid;
+            grid-template-columns: 220px 1fr;
+            gap: 0;
+            min-height: calc(100vh - 120px);
+        }
+
+        .guide-sidebar {
+            background: var(--bg-card);
+            border-right: 1px solid var(--border);
+            padding: 1.5rem 0;
+            position: sticky;
+            top: 0;
+            height: fit-content;
+            border-radius: var(--radius) 0 0 var(--radius);
+        }
+
+        .guide-sidebar a {
+            display: block;
+            padding: 0.5rem 1.25rem;
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 0.85rem;
+            border-left: 3px solid transparent;
+            transition: all 0.15s;
+        }
+
+        .guide-sidebar a:hover,
+        .guide-sidebar a.active {
+            color: var(--accent);
+            border-left-color: var(--accent);
+            background: rgba(99, 102, 241, 0.06);
+        }
+
+        .guide-sidebar .section-title {
+            font-size: 0.7rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            padding: 0.75rem 1.25rem 0.25rem;
+            margin-top: 0.5rem;
+        }
+
+        .guide-content {
+            padding: 0 2rem 3rem;
+        }
+
+        .guide-section {
+            margin-bottom: 3rem;
+            scroll-margin-top: 1rem;
+        }
+
+        .guide-section h2 {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: var(--text);
+            margin-bottom: 0.5rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .guide-section h3 {
+            font-size: 1.05rem;
+            font-weight: 600;
+            color: var(--text);
+            margin: 1.5rem 0 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .guide-section p,
+        .guide-section li {
+            font-size: 0.88rem;
+            color: var(--text-muted);
+            line-height: 1.7;
+        }
+
+        .guide-section ul,
+        .guide-section ol {
+            padding-left: 1.4rem;
+            margin: 0.5rem 0 1rem;
+        }
+
+        .guide-section li {
+            margin-bottom: 0.3rem;
+        }
+
+        .step-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            margin-bottom: 1.25rem;
+            overflow: hidden;
+        }
+
+        .step-header {
+            padding: 0.85rem 1.25rem;
+            background: rgba(0, 0, 0, 0.15);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .step-num {
+            background: var(--accent);
+            color: #fff;
+            font-size: 0.72rem;
+            font-weight: 700;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .step-title {
+            font-weight: 600;
+            font-size: 0.92rem;
+            color: var(--text);
+        }
+
+        .step-body {
+            padding: 1.1rem 1.25rem;
+        }
+
+        .code-block {
+            background: #0f172a;
+            border-radius: 8px;
+            overflow: hidden;
+            margin: 0.5rem 0;
+            position: relative;
+        }
+
+        .code-block-header {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 0.4rem 0.85rem;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .code-block pre {
+            margin: 0;
+            padding: 1rem;
+            font-size: 0.82rem;
+            overflow-x: auto;
+            color: #e2e8f0;
+            line-height: 1.6;
+        }
+
+        .copy-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            color: var(--text-muted);
+            padding: 0.2rem 0.6rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.75rem;
+            transition: all 0.15s;
+        }
+
+        .copy-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            color: var(--text);
+        }
+
+        .alert-info {
+            background: rgba(99, 102, 241, 0.1);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            border-radius: 8px;
+            padding: 0.85rem 1.1rem;
+            font-size: 0.85rem;
+            color: var(--text);
+            margin: 0.75rem 0;
+        }
+
+        .alert-warn {
+            background: rgba(251, 191, 36, 0.1);
+            border: 1px solid rgba(251, 191, 36, 0.3);
+            border-radius: 8px;
+            padding: 0.85rem 1.1rem;
+            font-size: 0.85rem;
+            color: var(--text);
+            margin: 0.75rem 0;
+        }
+
+        .alert-success {
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            border-radius: 8px;
+            padding: 0.85rem 1.1rem;
+            font-size: 0.85rem;
+            color: var(--text);
+            margin: 0.75rem 0;
+        }
+
+        .field-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.84rem;
+            margin: 0.5rem 0 1rem;
+        }
+
+        .field-table th {
+            text-align: left;
+            padding: 0.4rem 0.75rem;
+            background: rgba(0, 0, 0, 0.15);
+            color: var(--text-muted);
+            font-weight: 600;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+        }
+
+        .field-table td {
+            padding: 0.45rem 0.75rem;
+            border-bottom: 1px solid var(--border);
+            vertical-align: top;
+        }
+
+        .field-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .field-name {
+            font-family: monospace;
+            color: var(--accent);
+            font-size: 0.85rem;
+        }
+
+        .badge-req {
+            background: rgba(239, 68, 68, 0.15);
+            color: #ef4444;
+            font-size: 0.7rem;
+            padding: 0.1rem 0.4rem;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+
+        .badge-opt {
+            background: rgba(148, 163, 184, 0.12);
+            color: var(--text-muted);
+            font-size: 0.7rem;
+            padding: 0.1rem 0.4rem;
+            border-radius: 4px;
+        }
+
+        .type-tag {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 1px 6px;
+            font-family: monospace;
+            font-size: 0.78rem;
+            color: #f59e0b;
+        }
+
+        .server-type-tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1.25rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0;
+        }
+
+        .server-type-tab {
+            padding: 0.5rem 1rem;
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            color: var(--text-muted);
+            text-decoration: none;
+            transition: all 0.15s;
+            margin-bottom: -1px;
+        }
+
+        .server-type-tab:hover {
+            color: var(--text);
+        }
+
+        .server-type-tab.active {
+            color: var(--accent);
+            border-bottom-color: var(--accent);
+        }
+
+        code {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 1px 6px;
+            font-family: monospace;
+            font-size: 0.85em;
+            color: #f59e0b;
+        }
+    </style>
+
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">🖥️ Hướng dẫn cấu hình Server</h1>
+            <p class="text-muted" style="margin-top:0.25rem">Hướng dẫn chi tiết cách thiết lập và kiểm tra kết nối cho
+                từng loại server lưu trữ</p>
+        </div>
+        <% if (user.role==='administrator' ) { %>
+            <a href="/servers" class="btn btn-primary">⚙️ Quản lí Servers</a>
+            <% } %>
+    </div>
+
+    <div class="guide-layout">
+        <!-- Sidebar -->
+        <div class="guide-sidebar">
+            <div class="section-title">Tổng quan</div>
+            <a href="#overview">🗺️ Quy trình chung</a>
+            <a href="#fields">📋 Các trường cấu hình</a>
+
+            <div class="section-title">Loại Server</div>
+            <a href="#local">💾 Local Storage</a>
+            <a href="#sftp-password">🔐 SFTP (Password)</a>
+            <a href="#sftp-key">🔑 SFTP (SSH Key)</a>
+
+            <div class="section-title">Sau khi thêm</div>
+            <a href="#test">✅ Test kết nối</a>
+            <a href="#folder">📁 Tạo thư mục</a>
+            <a href="#upload">⬆️ Upload video</a>
+            <a href="#nginx">🌐 Cấu hình Nginx</a>
+            <a href="#troubleshoot">🔧 Xử lý sự cố</a>
+
+            <div class="section-title">CI/CD</div>
+            <a href="#deploy">🚀 Auto Deploy từ GitHub</a>
+        </div>
+
+        <!-- Content -->
+        <div class="guide-content">
+
+            <!-- OVERVIEW -->
+            <div class="guide-section" id="overview">
+                <h2>🗺️ Quy trình chung sau khi thêm server</h2>
+                <p>Sau khi thêm một server mới vào hệ thống, cần thực hiện các bước sau theo thứ tự:</p>
+
+                <div class="step-card">
+                    <div class="step-header">
+                        <div class="step-num">1</div>
+                        <span class="step-title">Thêm server tại trang Servers</span>
+                    </div>
+                    <div class="step-body">
+                        <p>Vào <a href="/servers" style="color:var(--accent)">⚙️ Servers</a> → nhấn <strong>Thêm
+                                Server</strong> → điền thông tin cấu hình → lưu.</p>
+                    </div>
+                </div>
+
+                <div class="step-card">
+                    <div class="step-header">
+                        <div class="step-num">2</div>
+                        <span class="step-title">Test kết nối</span>
+                    </div>
+                    <div class="step-body">
+                        <p>Tại trang Servers, nhấn nút <strong>🔌 Test</strong> trên server vừa thêm. Đèn xanh = kết nối
+                            thành công.</p>
+                        <div class="alert-warn">⚠️ Nếu test thất bại, kiểm tra lại host, port, username, password/SSH
+                            key và đảm bảo IP server không bị firewall chặn.</div>
+                    </div>
+                </div>
+
+                <div class="step-card">
+                    <div class="step-header">
+                        <div class="step-num">3</div>
+                        <span class="step-title">Tạo thư mục gốc</span>
+                    </div>
+                    <div class="step-body">
+                        <p>Vào <a href="/folders" style="color:var(--accent)">📁 Thư mục</a> → nhấn <strong>➕ Tạo thư
+                                mục gốc</strong> → chọn server vừa thêm → đặt tên thư mục.</p>
+                    </div>
+                </div>
+
+                <div class="step-card">
+                    <div class="step-header">
+                        <div class="step-num">4</div>
+                        <span class="step-title">Upload video đầu tiên</span>
+                    </div>
+                    <div class="step-body">
+                        <p>Vào <a href="/videos/upload" style="color:var(--accent)">⬆️ Upload Video</a> → chọn server và
+                            thư mục vừa tạo → upload thử một file nhỏ để xác nhận pipeline hoạt động.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- FIELDS -->
+            <div class="guide-section" id="fields">
+                <h2>📋 Các trường cấu hình</h2>
+                <p>Giải thích chi tiết từng trường khi thêm/sửa server:</p>
+
+                <table class="field-table">
+                    <tr>
+                        <th>Trường</th>
+                        <th>Bắt buộc</th>
+                        <th>Loại</th>
+                        <th>Mô tả</th>
+                    </tr>
+                    <tr>
+                        <td class="field-name">name</td>
+                        <td><span class="badge-req">✓ Bắt buộc</span></td>
+                        <td><span class="type-tag">text</span></td>
+                        <td>Tên hiển thị của server trong hệ thống. Ví dụ: <code>Hetzner VPS 1</code></td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">type</td>
+                        <td><span class="badge-req">✓ Bắt buộc</span></td>
+                        <td><span class="type-tag">select</span></td>
+                        <td><code>local</code> · <code>sftp</code> · <code>http</code> — loại kết nối</td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">host</td>
+                        <td><span class="badge-opt">SFTP/HTTP</span></td>
+                        <td><span class="type-tag">text</span></td>
+                        <td>Địa chỉ IP hoặc domain của server. Ví dụ: <code>u123456.your-storagebox.de</code></td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">port</td>
+                        <td><span class="badge-opt">Tuỳ chọn</span></td>
+                        <td><span class="type-tag">number</span></td>
+                        <td>Port SFTP. Mặc định <code>22</code>. Hetzner Storage Box dùng <code>23</code></td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">username</td>
+                        <td><span class="badge-opt">SFTP</span></td>
+                        <td><span class="type-tag">text</span></td>
+                        <td>Tên đăng nhập SFTP. Với Hetzner Storage Box thường là <code>u123456</code></td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">password</td>
+                        <td><span class="badge-opt">Tuỳ chọn</span></td>
+                        <td><span class="type-tag">password</span></td>
+                        <td>Mật khẩu SFTP. Nếu dùng SSH key thì để trống hoặc nhập passphrase của key</td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">root_path</td>
+                        <td><span class="badge-req">✓ Bắt buộc</span></td>
+                        <td><span class="type-tag">text</span></td>
+                        <td>Đường dẫn gốc để lưu video. Local: <code>D:\videos</code> · SFTP: <code>/home/videos</code>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">base_url</td>
+                        <td><span class="badge-opt">Tuỳ chọn</span></td>
+                        <td><span class="type-tag">url</span></td>
+                        <td>URL công khai để stream video. Ví dụ: <code>https://cdn.example.com</code>. Hệ thống dùng để
+                            tạo link xem video</td>
+                    </tr>
+                    <tr>
+                        <td class="field-name">private_key</td>
+                        <td><span class="badge-opt">Tuỳ chọn</span></td>
+                        <td><span class="type-tag">textarea</span></td>
+                        <td>Nội dung SSH private key (dán toàn bộ từ <code>-----BEGIN...</code> đến
+                            <code>-----END...</code>). Ưu tiên hơn password
+                        </td>
+                    </tr>
+                </table>
+            </div>
+
+            <!-- LOCAL -->
+            <div class="guide-section" id="local">
+                <h2>💾 Local Storage</h2>
+                <p>Lưu video trực tiếp trên ổ đĩa của máy chủ chạy ứng dụng. Phù hợp cho môi trường dev hoặc khi server
+                    và storage là cùng 1 máy.</p>
+
+                <div class="alert-info">
+                    💡 <strong>Local storage</strong> không cần host/port/username/password. Chỉ cần đường dẫn thư mục
+                    hợp lệ trên hệ điều hành.
+                </div>
+
+                <div class="step-card">
+                    <div class="step-header">
+                        <div class="step-num">1</div>
+                        <span class="step-title">Cấu hình cần thiết</span>
+                    </div>
+                    <div class="step-body">
+                        <table class="field-table">
+                            <tr>
+                                <th>Trường</th>
+                                <th>Giá trị ví dụ</th>
+                                <th>Ghi chú</th>
+                            </tr>
+                            <tr>
+                                <td class="field-name">type</td>
+                                <td><code>local</code></td>
+                                <td>Chọn từ dropdown</td>
+                            </tr>
+                            <tr>
+                                <td class="field-name">root_path</td>
+                                <td><code>D:\manager_video\uploads</code> (Windows)<br><code>/var/videos</code> (Linux)
+                                </td>
+                                <td>Thư mục phải tồn tại hoặc sẽ được tạo tự động khi test</td>
+                            </tr>
+                            <tr>
+                                <td class="field-name">base_url</td>
+                                <td><code>http://localhost:3000/stream</code></td>
+                                <td>URL để client truy cập video. Để trống nếu chưa cần link công khai</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="step-card">
+                    <div class="step-header">
+                        <div class="step-num">2</div>
+                        <span class="step-title">Phân quyền thư mục</span>
+                    </div>
+                    <div class="step-body">
+                        <p>Đảm bảo ứng dụng có quyền ghi vào <code>root_path</code>:</p>
+                        <div class="code-block">
+                            <div class="code-block-header"><span>Linux/macOS</span><button class="copy-btn"
+                                    onclick="copyCode(this)">Copy</button></div>
+                            <pre>sudo chown -R $(whoami) /var/videos
+chmod -R 755 /var/videos</pre>
+                        </div>
+                        <div class="code-block">
+                            <div class="code-block-header"><span>Windows (PowerShell)</span><button class="copy-btn"
+                                    onclick="copyCode(this)">Copy</button></div>
+                            <pre># Tạo thư mục nếu chưa có
+New-Item -ItemType Directory -Force -Path "D:\manager_video\uploads"</pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SFTP PASSWORD -->
+            <div class="guide-section" id="sftp-password">
+                <h2>🔐 SFTP với Password</h2>
+                <p>Kết nối đến server Linux/VPS qua SFTP bằng username + password. Phù hợp với Hetzner VPS, DigitalOcean
+                    Droplet, hoặc bất kỳ server SSH nào.</p>
+
+                <div class="step-card">
+                    <div class="step-header">
+                        <div class="step-num">1</div>
+                        <span class="step-title">Thông tin cần chuẩn bị</span>
+                    </div>
+                    <div class="step-body">
+                        <ul>
+                            <li>IP hoặc domain của server (ví dụ: <code>65.21.xxx.xxx</code>)</li>
+                            <li>Tên user SFTP (thường là <code>root</code> hoặc user riêng)</li>
+                            <li>Mật khẩu SSH</li>
+                            <li>Đường dẫn thư mục lưu video trên server (ví dụ: <code>/var/www/videos</code>)</li>
+                            <li>URL công khai nếu muốn stream trực tiếp (ví dụ: <code>https://cdn.mysite.com</code>)
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="step-card">
+                    <div class="step-header">
+                        <div class="step-num">2</div>
+                        <span class="step-title">Cấu hình trong hệ thống</span>
+                    </div>
+                    <div class="step-body">
+                        <table class="field-table">
+                            <tr>
+                                <th>Trường</th>
+                                <th>Giá trị ví dụ</th>
+                            </tr>
+                            <tr>
+                                <td class="field-name">type</td>
+                                <td><code>sftp</code></td>
+                            </tr>
+                            <tr>
+                                <td class="field-name">host</td>
+                                <td><code>65.21.100.200</code></td>
+                            </tr>
+                            <tr>
+                                <td class="field-name">port</td>
+                                <td><code>22</code> (mặc định)</td>
+                            </tr>
+                            <tr>
+                                <td class="field-name">username</td>
+                                <td><code>root</code> hoặc <code>deploy</code></td>
+                            </tr>
+                            <tr>
+                                <td class="field-name">password</td>
+                                <td><code>your_ssh_password</code></td>
+                            </tr>
+                            <tr>
+                                <td class="field-name">root_path</td>
+                                <td><code>/var/www/videos</code></td>
+                            </tr>
+                            <tr>
+                                <td class="field-name">base_url</td>
+                                <td><code>https://cdn.mysite.com</code></td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="step-card">
+                    <div class="step-header">
+                        <div class="step-num">3</div>
+                        <span class="step-title">Tạo thư mục trên server (nếu chưa có)</span>
+                    </div>
+                    <div class="step-body">
+                        <div class="code-block">
+                            <div class="code-block-header"><span>SSH vào server</span><button class="copy-btn"
+                                    onclick="copyCode(this)">Copy</button></div>
+                            <pre>ssh root@65.21.100.200
+mkdir -p /var/www/videos
+chmod 755 /var/www/videos</pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SFTP KEY -->
+            <div class="guide-section" id="sftp-key">
+                <h2>🔑 SFTP với SSH Key</h2>
+                <p>Kết nối SFTP bằng SSH key (an toàn hơn password). Khuyến nghị cho môi trường production.</p>
+
+                <div class="alert-success">
+                    ✅ SSH key an toàn hơn password vì không bị brute-force. Luôn ưu tiên dùng SSH key cho server
+                    production.
+                </div>
+
+                <div class="step-card">
+                    <div class="step-header">
+                        <div class="step-num">1</div>
+                        <span class="step-title">Tạo SSH key pair (nếu chưa có)</span>
+                    </div>
+                    <div class="step-body">
+                        <div class="code-block">
+                            <div class="code-block-header"><span>Tạo key mới</span><button class="copy-btn"
+                                    onclick="copyCode(this)">Copy</button></div>
+                            <pre>ssh-keygen -t ed25519 -C "videomanager" -f ~/.ssh/videomanager_key
+# Nhập passphrase nếu muốn bảo vệ key (để trống nếu không cần)</pre>
+                        </div>
+                        <p style="margin-top:.75rem">Kết quả: 2 file được tạo:</p>
+                        <ul>
+                            <li><code>~/.ssh/videomanager_key</code> — <strong>Private key</strong> (giữ bí mật, dán vào
+                                hệ thống)</li>
+                            <li><code>~/.ssh/videomanager_key.pub</code> — <strong>Public key</strong> (upload lên
+                                server)</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="step-card">
+                    <div class="step-header">
+                        <div class="step-num">2</div>
+                        <span class="step-title">Cài public key lên server</span>
+                    </div>
+                    <div class="step-body">
+                        <div class="code-block">
+                            <div class="code-block-header"><span>Từ máy local</span><button class="copy-btn"
+                                    onclick="copyCode(this)">Copy</button></div>
+                            <pre>ssh-copy-id -i ~/.ssh/videomanager_key.pub root@65.21.100.200
+# Hoặc thủ công:
+cat ~/.ssh/videomanager_key.pub | ssh root@65.21.100.200 "cat >> ~/.ssh/authorized_keys"</pre>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="step-card">
+                    <div class="step-header">
+                        <div class="step-num">3</div>
+                        <span class="step-title">Lấy nội dung private key</span>
+                    </div>
+                    <div class="step-body">
+                        <div class="code-block">
+                            <div class="code-block-header"><span>Đọc private key</span><button class="copy-btn"
+                                    onclick="copyCode(this)">Copy</button></div>
+                            <pre>cat ~/.ssh/videomanager_key</pre>
+                        </div>
+                        <p>Copy toàn bộ nội dung (từ <code>-----BEGIN OPENSSH PRIVATE KEY-----</code> đến
+                            <code>-----END OPENSSH PRIVATE KEY-----</code>) và dán vào trường <strong>Private
+                                Key</strong> trong form thêm server.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="step-card">
+                    <div class="step-header">
+                        <div class="step-num">4</div>
+                        <span class="step-title">Cấu hình trong hệ thống</span>
+                    </div>
+                    <div class="step-body">
+                        <table class="field-table">
+                            <tr>
+                                <th>Trường</th>
+                                <th>Giá trị</th>
+                            </tr>
+                            <tr>
+                                <td class="field-name">type</td>
+                                <td><code>sftp</code></td>
+                            </tr>
+                            <tr>
+                                <td class="field-name">host</td>
+                                <td><code>65.21.100.200</code></td>
+                            </tr>
+                            <tr>
+                                <td class="field-name">port</td>
+                                <td><code>22</code></td>
+                            </tr>
+                            <tr>
+                                <td class="field-name">username</td>
+                                <td><code>root</code></td>
+                            </tr>
+                            <tr>
+                                <td class="field-name">password</td>
+                                <td>Passphrase của key (để trống nếu key không có passphrase)</td>
+                            </tr>
+                            <tr>
+                                <td class="field-name">root_path</td>
+                                <td><code>/var/www/videos</code></td>
+                            </tr>
+                            <tr>
+                                <td class="field-name">private_key</td>
+                                <td>Dán toàn bộ nội dung private key</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TEST -->
+            <div class="guide-section" id="test">
+                <h2>✅ Test kết nối</h2>
+                <p>Sau khi thêm server, luôn test kết nối trước khi sử dụng:</p>
+
+                <ol>
+                    <li>Vào <a href="/servers" style="color:var(--accent)">⚙️ Servers</a></li>
+                    <li>Tìm server vừa thêm</li>
+                    <li>Nhấn nút <strong>🔌 Test</strong></li>
+                    <li>Đợi kết quả (thường < 10 giây)</li>
+                </ol>
+
+                <div class="alert-success">✅ <strong>Thành công:</strong> Thông báo <em>"connection successful"</em>
+                    xuất hiện — server đã sẵn sàng dùng.</div>
+                <div class="alert-warn">❌ <strong>Thất bại:</strong> Xem thông báo lỗi cụ thể để biết nguyên nhân (sai
+                    host, port bị chặn, sai mật khẩu, v.v.)</div>
+            </div>
+
+            <!-- FOLDER -->
+            <div class="guide-section" id="folder">
+                <h2>📁 Tạo thư mục sau khi thêm server</h2>
+                <p>Thư mục giúp tổ chức video theo danh mục. Nên tạo ít nhất một thư mục gốc trước khi upload:</p>
+
+                <ol>
+                    <li>Vào <a href="/folders" style="color:var(--accent)">📁 Thư mục</a></li>
+                    <li>Nhấn <strong>➕ Tạo thư mục gốc</strong></li>
+                    <li>Chọn server vừa thêm từ dropdown</li>
+                    <li>Đặt tên thư mục (ví dụ: <code>phim-hanh-dong</code>, <code>anime</code>)</li>
+                    <li>Nhấn <strong>Tạo thư mục</strong></li>
+                </ol>
+
+                <div class="alert-info">
+                    💡 Tên thư mục sẽ trở thành một phần của <strong>đường dẫn file trên server</strong>. Nên dùng chữ
+                    thường, không dấu, dùng dấu gạch ngang thay khoảng trắng.
+                </div>
+            </div>
+
+            <!-- UPLOAD -->
+            <div class="guide-section" id="upload">
+                <h2>⬆️ Upload video đầu tiên</h2>
+                <p>Sau khi tạo thư mục, thử upload một video nhỏ để xác nhận toàn bộ pipeline hoạt động:</p>
+
+                <ol>
+                    <li>Vào <a href="/videos/upload" style="color:var(--accent)">⬆️ Upload Video</a></li>
+                    <li>Chọn file hoặc nhập URL</li>
+                    <li>Điền tiêu đề</li>
+                    <li>Chọn <strong>Server</strong> và <strong>Thư mục</strong> vừa tạo</li>
+                    <li>Nhấn Upload</li>
+                    <li>Theo dõi tiến trình trên thanh progress</li>
+                </ol>
+
+                <div class="alert-info">
+                    📌 Khi upload xong, status chuyển sang <strong>✅ Xong</strong>. Có thể nhấn <strong>🔗 Copy
+                        link</strong> để lấy URL stream video.
+                </div>
+            </div>
+
+            <!-- NGINX -->
+            <div class="guide-section" id="nginx">
+                <h2>🌐 Cấu hình Nginx trên SFTP Server</h2>
+                <p>Sau khi upload video lên server qua SFTP, cần cấu hình Nginx trên server đó để <strong>serve file ra
+                        public</strong> (tạo URL xem video). Đây là bước cần thiết để trường <code>base_url</code> hoạt
+                    động.</p>
+
+                <div class="alert-info">
+                    💡 <strong>Luồng hoạt động:</strong> Video Manager upload file → SFTP → server lưu tại
+                    <code>root_path</code> → Nginx serve thư mục đó ra URL công khai → người dùng xem qua
+                    <code>base_url/path/file.mp4</code>
+                </div>
+
+                <!-- STEP 1: Cài Nginx -->
+                <div class="step-card">
+                    <div class="step-header">
+                        <div class="step-num">1</div>
+                        <span class="step-title">Cài đặt Nginx (nếu chưa có)</span>
+                    </div>
+                    <div class="step-body">
+                        <div class="code-block">
+                            <div class="code-block-header"><span>Ubuntu</span><button class="copy-btn"
+                                    onclick="copyCode(this)">Copy</button></div>
+                            <pre>sudo apt update
+sudo apt install -y nginx
+sudo systemctl enable nginx
+sudo systemctl start nginx</pre>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- STEP 2: Cấu hình serve static -->
+                <div class="step-card">
+                    <div class="step-header">
+                        <div class="step-num">2</div>
+                        <span class="step-title">Cấu hình Nginx serve thư mục video (HTTP)</span>
+                    </div>
+                    <div class="step-body">
+                        <p>Tạo file cấu hình Nginx mới:</p>
+                        <div class="code-block">
+                            <div class="code-block-header"><span>Tạo file config</span><button class="copy-btn"
+                                    onclick="copyCode(this)">Copy</button></div>
+                            <pre>sudo nano /etc/nginx/sites-available/videos</pre>
+                        </div>
+                        <p style="margin-top:.75rem">Nội dung file cấu hình:</p>
+                        <div class="code-block">
+                            <div class="code-block-header"><span>/etc/nginx/sites-available/videos</span><button
+                                    class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+                            <pre>server {
+    listen 80;
+    server_name cdn.mysite.com;  # Domain hoặc IP của server
+
+    # Thư mục chứa video (= root_path trong Video Manager)
+    root /var/www/videos;
+
+    location / {
+        # Cho phép truy cập trực tiếp file
+        autoindex off;             # Tắt list thư mục (bảo mật)
+
+        # CORS — cho phép embed video từ domain khác
+        add_header Access-Control-Allow-Origin  "*";
+        add_header Access-Control-Allow-Methods "GET, HEAD, OPTIONS";
+
+        # Cache tốt cho video tĩnh
+        add_header Cache-Control "public, max-age=604800, immutable";
+
+        # Hỗ trợ HTTP Range (cần thiết cho video seek)
+        add_header Accept-Ranges bytes;
+    }
+
+    # Tăng giới hạn kích thước response
+    client_max_body_size 0;
+
+    # Tắt access log để giảm I/O (tùy chọn)
+    access_log off;
+}</pre>
+                        </div>
+                        <div class="code-block">
+                            <div class="code-block-header"><span>Bật site và reload</span><button class="copy-btn"
+                                    onclick="copyCode(this)">Copy</button></div>
+                            <pre>sudo ln -s /etc/nginx/sites-available/videos /etc/nginx/sites-enabled/
+sudo nginx -t          # Kiểm tra syntax
+sudo systemctl reload nginx</pre>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- STEP 3: SSL -->
+                <div class="step-card">
+                    <div class="step-header">
+                        <div class="step-num">3</div>
+                        <span class="step-title">Cài SSL/HTTPS với Let's Encrypt (khuyến nghị)</span>
+                    </div>
+                    <div class="step-body">
+                        <div class="alert-success">
+                            ✅ HTTPS giúp video không bị chặn bởi trình duyệt khi embed vào trang HTTPS. Nên cài ngay sau
+                            khi trỏ domain.
+                        </div>
+                        <div class="code-block">
+                            <div class="code-block-header"><span>Cài Certbot</span><button class="copy-btn"
+                                    onclick="copyCode(this)">Copy</button></div>
+                            <pre>sudo apt install -y certbot python3-certbot-nginx
+sudo certbot --nginx -d cdn.mysite.com
+# Làm theo hướng dẫn (nhập email, đồng ý điều khoản)
+# Certbot tự động cập nhật config Nginx sang HTTPS</pre>
+                        </div>
+                        <p>Sau khi xong, cấu hình Nginx sẽ tự động được thêm <code>listen 443 ssl</code> và certificate.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- STEP 4: Upload lớn -->
+                <div class="step-card">
+                    <div class="step-header">
+                        <div class="step-num">4</div>
+                        <span class="step-title">Cho phép upload file lớn (nếu dùng HTTP upload)</span>
+                    </div>
+                    <div class="step-body">
+                        <p>Nếu dùng HTTP upload trực tiếp qua Nginx (không phải SFTP), cần tăng giới hạn:</p>
+                        <div class="code-block">
+                            <div class="code-block-header"><span>/etc/nginx/nginx.conf</span><button class="copy-btn"
+                                    onclick="copyCode(this)">Copy</button></div>
+                            <pre>http {
+    client_max_body_size 50G;   # Cho phép file tối đa 50GB
+    client_body_timeout  3600;  # Timeout 1 giờ
+    proxy_read_timeout   3600;
+    # ... phần còn lại giữ nguyên
+}</pre>
+                        </div>
+                        <div class="code-block">
+                            <div class="code-block-header"><span>Áp dụng</span><button class="copy-btn"
+                                    onclick="copyCode(this)">Copy</button></div>
+                            <pre>sudo nginx -t && sudo systemctl reload nginx</pre>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- STEP 5: Hetzner Storage Box -->
+                <div class="step-card">
+                    <div class="step-header">
+                        <div class="step-num">5</div>
+                        <span class="step-title">Serve video từ Hetzner Storage Box qua Nginx trên VPS</span>
+                    </div>
+                    <div class="step-body">
+                        <p>Nếu dùng <strong>Hetzner Storage Box</strong> để lưu file và một <strong>VPS riêng</strong>
+                            để serve HTTP, cần mount Storage Box vào VPS qua SSHFS, sau đó Nginx serve thư mục đã mount:
+                        </p>
+                        <div class="code-block">
+                            <div class="code-block-header"><span>Bước 1 — Cài SSHFS trên VPS</span><button
+                                    class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+                            <pre>sudo apt install -y sshfs
+mkdir -p /mnt/storagebox</pre>
+                        </div>
+                        <div class="code-block">
+                            <div class="code-block-header"><span>Bước 2 — Mount Storage Box</span><button
+                                    class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+                            <pre># Mount thủ công (test)
+sshfs -p 23 u123456@u123456.your-storagebox.de:/ /mnt/storagebox \
+  -o allow_other,reconnect,ServerAliveInterval=15,ServerAliveCountMax=3</pre>
+                        </div>
+                        <div class="code-block">
+                            <div class="code-block-header"><span>Bước 3 — Tự động mount khi boot
+                                    (/etc/fstab)</span><button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                            </div>
+                            <pre># Thêm vào cuối /etc/fstab:
+u123456@u123456.your-storagebox.de:/ /mnt/storagebox fuse.sshfs \
+  port=23,allow_other,reconnect,IdentityFile=/root/.ssh/storagebox_key,\
+  ServerAliveInterval=15,ServerAliveCountMax=3,_netdev 0 0</pre>
+                        </div>
+                        <div class="code-block">
+                            <div class="code-block-header"><span>Bước 4 — Cấu hình Nginx serve từ mount
+                                    point</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+                            <pre>server {
+    listen 80;
+    server_name cdn.mysite.com;
+
+    # Trỏ root vào thư mục đã mount
+    root /mnt/storagebox/videos;
+
+    location / {
+        add_header Access-Control-Allow-Origin "*";
+        add_header Accept-Ranges bytes;
+        add_header Cache-Control "public, max-age=86400";
+    }
+}</pre>
+                        </div>
+                        <div class="alert-info">
+                            📌 <strong>Trong Video Manager:</strong> cấu hình server SFTP với
+                            <code>host = u123456.your-storagebox.de</code>, <code>port = 23</code>,
+                            <code>root_path = /videos</code> và <code>base_url = https://cdn.mysite.com</code> (domain
+                            VPS có Nginx).
+                        </div>
+                    </div>
+                </div>
+
+                <!-- STEP 6: Kiểm tra -->
+                <div class="step-card">
+                    <div class="step-header">
+                        <div class="step-num">6</div>
+                        <span class="step-title">Kiểm tra Nginx hoạt động đúng</span>
+                    </div>
+                    <div class="step-body">
+                        <div class="code-block">
+                            <div class="code-block-header"><span>Test bằng curl</span><button class="copy-btn"
+                                    onclick="copyCode(this)">Copy</button></div>
+                            <pre># Kiểm tra file tồn tại và CORS header
+curl -I https://cdn.mysite.com/folder/video.mp4
+
+# Kết quả mong đợi:
+# HTTP/2 200
+# content-type: video/mp4
+# accept-ranges: bytes
+# access-control-allow-origin: *</pre>
+                        </div>
+                        <div class="code-block">
+                            <div class="code-block-header"><span>Xem log lỗi Nginx</span><button class="copy-btn"
+                                    onclick="copyCode(this)">Copy</button></div>
+                            <pre>sudo tail -f /var/log/nginx/error.log</pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TROUBLESHOOT -->
+            <div class="guide-section" id="troubleshoot">
+                <h2>🔧 Xử lý sự cố thường gặp</h2>
+
+                <div class="step-card">
+                    <div class="step-header">
+                        <span class="step-title">❌ SFTP Error: connect ECONNREFUSED</span>
+                    </div>
+                    <div class="step-body">
+                        <p><strong>Nguyên nhân:</strong> Server từ chối kết nối — sai port hoặc SSH service chưa chạy.
+                        </p>
+                        <ul>
+                            <li>Kiểm tra lại port: Hetzner Storage Box dùng <code>23</code>, VPS thông thường dùng
+                                <code>22</code>
+                            </li>
+                            <li>Kiểm tra firewall: <code>ufw allow 22</code> (trên server)</li>
+                            <li>Kiểm tra SSH service: <code>systemctl status sshd</code></li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="step-card">
+                    <div class="step-header">
+                        <span class="step-title">❌ SFTP Error: All configured authentication methods failed</span>
+                    </div>
+                    <div class="step-body">
+                        <p><strong>Nguyên nhân:</strong> Sai username hoặc password/SSH key.</p>
+                        <ul>
+                            <li>Kiểm tra lại username và password</li>
+                            <li>Nếu dùng SSH key: đảm bảo public key đã được thêm vào
+                                <code>~/.ssh/authorized_keys</code> trên server
+                            </li>
+                            <li>Đảm bảo file private key được dán đúng (bao gồm cả dòng <code>-----BEGIN...</code> và
+                                <code>-----END...</code>)
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="step-card">
+                    <div class="step-header">
+                        <span class="step-title">❌ Upload xong nhưng không có link video</span>
+                    </div>
+                    <div class="step-body">
+                        <p><strong>Nguyên nhân:</strong> Chưa cấu hình <code>base_url</code> cho server.</p>
+                        <ul>
+                            <li>Vào <a href="/servers" style="color:var(--accent)">Servers</a> → Sửa server → điền
+                                <code>base_url</code>
+                            </li>
+                            <li>Ví dụ: <code>https://cdn.mysite.com</code> (không có <code>/</code> cuối)</li>
+                            <li>Đảm bảo web server (Nginx/Apache) đã được cấu hình để serve file từ
+                                <code>root_path</code>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="step-card">
+                    <div class="step-header">
+                        <span class="step-title">❌ Upload thất bại với lỗi 413</span>
+                    </div>
+                    <div class="step-body">
+                        <p><strong>Nguyên nhân:</strong> Nginx giới hạn kích thước request.</p>
+                        <div class="code-block">
+                            <div class="code-block-header"><span>nginx.conf</span><button class="copy-btn"
+                                    onclick="copyCode(this)">Copy</button></div>
+                            <pre>http {
+    client_max_body_size 10G;  # Cho phép upload file lớn
+}</pre>
+                        </div>
+                        <p>Sau đó: <code>sudo nginx -s reload</code></p>
+                    </div>
+                </div>
+
+                <div class="step-card">
+                    <div class="step-header">
+                        <span class="step-title">❌ Server không hiện trong danh sách khi upload</span>
+                    </div>
+                    <div class="step-body">
+                        <p><strong>Nguyên nhân:</strong> Server bị đặt <code>is_active = 0</code>.</p>
+                        <ul>
+                            <li>Vào <a href="/servers" style="color:var(--accent)">Servers</a> → Sửa server → đảm bảo
+                                checkbox <strong>Active</strong> được bật</li>
+                            <li>Lưu lại → reload trang upload</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+        </div><!-- /guide-content -->
+    </div><!-- /guide-layout -->
+
+    <!-- DEPLOY SECTION (đặt ngoài guide-layout để full-width) -->
+    <div style="max-width:900px;margin:2rem auto 3rem;padding:0 1rem">
+        <div class="guide-section" id="deploy">
+            <h2>🚀 Auto Deploy từ GitHub khi sửa code local</h2>
+            <p>Thiết lập pipeline để mỗi lần <code>git push</code> từ máy local, server tự động pull code mới v̀ khởi
+                động lại ứng dụng — không cần SSH thủ công.</p>
+
+            <div class="alert-info">
+                💡 <strong>Luồng:</strong> Có 2 cách cấu hình. Chọn cách phù hợp với môi trường của bạn.<br>
+                ① <strong>GitHub Webhook</strong> — Tự động 100%, server lắng nghe sự kiện push từ GitHub<br>
+                ② <strong>Cron Job / systemd timer</strong> — Server tự kiểm tra mỗi vài phút, đơn giản hơn
+            </div>
+
+            <h3 style="margin-top:1.5rem">Cài đặt cơ bản (cả 2 cách)</h3>
+
+            <div class="step-card">
+                <div class="step-header">
+                    <div class="step-num">1</div>
+                    <span class="step-title">Tạo GitHub Repository và push code lần đầu</span>
+                </div>
+                <div class="step-body">
+                    <div class="code-block">
+                        <div class="code-block-header"><span>Trên máy local (Windows/PowerShell)</span><button
+                                class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+                        <pre>cd d:\manager_video
+git init
+git add .
+git commit -m "first commit"
+git branch -M main
+git remote add origin https://github.com/YOUR_USER/manager_video.git
+git push -u origin main</pre>
+                    </div>
+                    <div class="alert-warn" style="margin-top:.75rem">
+                        ⚠️ Tạo <code>.gitignore</code> để không push thư mục <code>node_modules</code>, file DB, và
+                        <code>.env</code>:
+                    </div>
+                    <div class="code-block">
+                        <div class="code-block-header"><span>.gitignore</span><button class="copy-btn"
+                                onclick="copyCode(this)">Copy</button></div>
+                        <pre>node_modules/
+data/*.db
+.env
+uploads/
+logs/</pre>
+                    </div>
+                </div>
+            </div>
+
+            <div class="step-card">
+                <div class="step-header">
+                    <div class="step-num">2</div>
+                    <span class="step-title">Cài đặt Node.js, PM2 và clone repo trên server</span>
+                </div>
+                <div class="step-body">
+                    <div class="code-block">
+                        <div class="code-block-header"><span>Ubuntu — cài các gói cần thiết</span><button
+                                class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+                        <pre># Cập nhật package list
+sudo apt update && sudo apt upgrade -y
+
+# Cài git và các gói cần thiết
+sudo apt install -y git curl build-essential
+
+# Cài Node.js 20 LTS từ NodeSource
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt install -y nodejs
+node -v && npm -v   # Kiểm tra version
+
+# Cài PM2 (để app chạy liên tục và auto-restart)
+sudo npm install -g pm2
+
+# Clone repo
+sudo mkdir -p /var/www
+sudo chown $USER:$USER /var/www
+cd /var/www
+git clone https://github.com/YOUR_USER/manager_video.git
+cd manager_video
+npm install --production</pre>
+                    </div>
+                    <div class="code-block">
+                        <div class="code-block-header"><span>Tạo file .env trên server</span><button class="copy-btn"
+                                onclick="copyCode(this)">Copy</button></div>
+                        <pre>nano /var/www/manager_video/.env
+# Thêm nội dung tương tự .env local của bạn</pre>
+                    </div>
+                </div>
+            </div>
+
+            <div class="step-card">
+                <div class="step-header">
+                    <div class="step-num">3</div>
+                    <span class="step-title">Chạy app với PM2 và tự start khi boot</span>
+                </div>
+                <div class="step-body">
+                    <div class="code-block">
+                        <div class="code-block-header"><span>Khởi động và cấu hình PM2</span><button class="copy-btn"
+                                onclick="copyCode(this)">Copy</button></div>
+                        <pre>cd /var/www/manager_video
+pm2 start src/app.js --name manager_video
+pm2 save                   # Lưu danh sách app
+pm2 startup                # Sinh lệnh để auto-start
+# Chạy lệnh được in ra bởi pm2 startup (dạng sudo env PATH=...)</pre>
+                    </div>
+                    <div class="code-block">
+                        <div class="code-block-header"><span>Kiểm tra trạng thái</span><button class="copy-btn"
+                                onclick="copyCode(this)">Copy</button></div>
+                        <pre>pm2 status
+pm2 logs manager_video     # Xem log real-time</pre>
+                    </div>
+                </div>
+            </div>
+
+            <div class="step-card">
+                <div class="step-header">
+                    <div class="step-num">4</div>
+                    <span class="step-title">Tạo deploy script trên server</span>
+                </div>
+                <div class="step-body">
+                    <p>Script này sẽ được gọi mỗi khi có push mới:</p>
+                    <div class="code-block">
+                        <div class="code-block-header"><span>Tạo /var/www/deploy.sh</span><button class="copy-btn"
+                                onclick="copyCode(this)">Copy</button></div>
+                        <pre>#!/bin/bash
+set -e
+
+APP_DIR="/var/www/manager_video"
+APP_NAME="manager_video"
+
+echo "[$(date)] 🚀 Bắt đầu deploy..."
+
+cd $APP_DIR
+
+# Pull code mới
+git fetch origin main
+git reset --hard origin/main
+
+# Cài dependencies mới nếu có
+npm install --production --silent
+
+# Restart app với PM2
+pm2 reload $APP_NAME
+
+echo "[$(date)] ✅ Deploy thành công!"</pre>
+                    </div>
+                    <div class="code-block">
+                        <div class="code-block-header"><span>Phân quyền thực thi</span><button class="copy-btn"
+                                onclick="copyCode(this)">Copy</button></div>
+                        <pre>chmod +x /var/www/deploy.sh</pre>
+                    </div>
+                    <div class="alert-info">
+                        💡 <code>pm2 reload</code> gíúp restart không downtime (graceful reload) thay vì
+                        <code>pm2 restart</code>.
+                    </div>
+                </div>
+            </div>
+
+            <!-- CÁCH 1: WEBHOOK -->
+            <h3 style="margin:2rem 0 .75rem">① Cấu hình tự động qua GitHub Webhook</h3>
+
+            <div class="step-card">
+                <div class="step-header">
+                    <div class="step-num">5a</div>
+                    <span class="step-title">Tạo Webhook receiver trong ứng dụng</span>
+                </div>
+                <div class="step-body">
+                    <p>Thêm route này vào <code>src/app.js</code> (hoặc file route riêng):</p>
+                    <div class="code-block">
+                        <div class="code-block-header"><span>src/app.js — thêm route webhook</span><button
+                                class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+                        <pre>const crypto = require('crypto');
+const { exec } = require('child_process');
+
+// GitHub Webhook — không cần xác thực session
+app.post('/deploy/webhook', express.raw({ type: 'application/json' }), (req, res) => {
+    const secret = process.env.WEBHOOK_SECRET || '';
+    const sig    = req.headers['x-hub-signature-256'] || '';
+
+    // Xác minh chữ ký từ GitHub
+    if (secret) {
+        const hmac     = crypto.createHmac('sha256', secret);
+        const expected = 'sha256=' + hmac.update(req.body).digest('hex');
+        if (sig !== expected) {
+            return res.status(403).json({ error: 'Invalid signature' });
+        }
+    }
+
+    const payload = JSON.parse(req.body);
+    if (payload.ref !== 'refs/heads/main') {
+        return res.json({ message: 'Not main branch, skipped' });
+    }
+
+    console.log('[Webhook] Push tới main, bắt đầu deploy...');
+    res.json({ message: 'Deploy started' });
+
+    // Chạy deploy script
+    exec('bash /var/www/deploy.sh >> /var/log/deploy.log 2>&1', (err) => {
+        if (err) console.error('[Webhook] Deploy error:', err.message);
+        else     console.log('[Webhook] Deploy xong!');
+    });
+});</pre>
+                    </div>
+                    <div class="code-block">
+                        <div class="code-block-header"><span>Thêm vào .env trên server</span><button class="copy-btn"
+                                onclick="copyCode(this)">Copy</button></div>
+                        <pre>WEBHOOK_SECRET=your_random_secret_here</pre>
+                    </div>
+                    <div class="alert-warn">
+                        ⚠️ Nếu server dùng UFW firewall, mở port của app (mặc định 3000):
+                        <br><code>sudo ufw allow 3000/tcp</code><br>
+                        Sau đó thiết lập Nginx reverse proxy để expose qua port 80/443.
+                    </div>
+                </div>
+            </div>
+
+            <div class="step-card">
+                <div class="step-header">
+                    <div class="step-num">5b</div>
+                    <span class="step-title">Cấu hình Webhook trên GitHub</span>
+                </div>
+                <div class="step-body">
+                    <ol>
+                        <li>Vào GitHub repo → <strong>Settings</strong> → <strong>Webhooks</strong> → <strong>Add
+                                webhook</strong></li>
+                        <li><strong>Payload URL:</strong> <code>https://your-server.com/deploy/webhook</code></li>
+                        <li><strong>Content type:</strong> <code>application/json</code></li>
+                        <li><strong>Secret:</strong> Giá trị <code>WEBHOOK_SECRET</code> giống trong <code>.env</code>
+                        </li>
+                        <li>Chọn <strong>Just the push event</strong></li>
+                        <li>Nhấn <strong>Add webhook</strong></li>
+                    </ol>
+                    <div class="alert-success">
+                        ✅ Từ đây mỗi lần <code>git push origin main</code> từ máy local, server sẽ tự động pull và
+                        reload trong vài giây.
+                    </div>
+                </div>
+            </div>
+
+            <!-- CÁCH 2: CRON -->
+            <h3 style="margin:2rem 0 .75rem">② Cấu hình tự động qua Cron Job (đơn giản hơn)</h3>
+
+            <div class="step-card">
+                <div class="step-header">
+                    <div class="step-num">5c</div>
+                    <span class="step-title">Script kiểm tra và pull khi có commit mới</span>
+                </div>
+                <div class="step-body">
+                    <div class="code-block">
+                        <div class="code-block-header"><span>Tạo /var/www/check_deploy.sh</span><button class="copy-btn"
+                                onclick="copyCode(this)">Copy</button></div>
+                        <pre>#!/bin/bash
+APP_DIR="/var/www/manager_video"
+
+cd $APP_DIR
+git fetch origin main --quiet
+
+LOCAL=$(git rev-parse HEAD)
+REMOTE=$(git rev-parse origin/main)
+
+if [ "$LOCAL" != "$REMOTE" ]; then
+    echo "[$(date)] Có commit mới, bắt đầu deploy..."
+    bash /var/www/deploy.sh
+fi</pre>
+                    </div>
+                    <div class="code-block">
+                        <div class="code-block-header"><span>Thêm vào crontab (kiểm tra mỗi 2 phút)</span><button
+                                class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+                        <pre>crontab -e
+# Thêm dòng này:
+*/2 * * * * bash /var/www/check_deploy.sh >> /var/log/deploy.log 2>&1</pre>
+                    </div>
+                    <div class="alert-warn">
+                        ⚠️ Cron cần server có quyền đọc repo GitHub. Nếu repo private, thêm GitHub Deploy Key (xem bước
+                        dưới).
+                    </div>
+                </div>
+            </div>
+
+            <!-- PRIVATE REPO -->
+            <div class="step-card">
+                <div class="step-header">
+                    <div class="step-num">6</div>
+                    <span class="step-title">Xử lý Private Repository (Deploy Key)</span>
+                </div>
+                <div class="step-body">
+                    <p>Nếu repo GitHub của bạn là <strong>private</strong>, server cần có quyền đọc qua SSH Deploy Key:
+                    </p>
+                    <div class="code-block">
+                        <div class="code-block-header"><span>Trên server — tạo deploy key</span><button class="copy-btn"
+                                onclick="copyCode(this)">Copy</button></div>
+                        <pre>ssh-keygen -t ed25519 -C "deploy@server" -f ~/.ssh/github_deploy -N ""
+cat ~/.ssh/github_deploy.pub   # Copy nội dung này</pre>
+                    </div>
+                    <div class="code-block">
+                        <div class="code-block-header"><span>Thêm vào GitHub</span><button class="copy-btn"
+                                onclick="copyCode(this)">Copy</button></div>
+                        <pre># GitHub Repo → Settings → Deploy keys → Add deploy key
+# Dán nội dung ~/.ssh/github_deploy.pub, chọn "Allow write access" nếu cần</pre>
+                    </div>
+                    <div class="code-block">
+                        <div class="code-block-header"><span>Cấu hình SSH để dùng deploy key</span><button
+                                class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+                        <pre>nano ~/.ssh/config
+# Thêm:
+Host github.com
+    IdentityFile ~/.ssh/github_deploy
+    StrictHostKeyChecking no</pre>
+                    </div>
+                    <div class="code-block">
+                        <div class="code-block-header"><span>Thay remote URL sang SSH</span><button class="copy-btn"
+                                onclick="copyCode(this)">Copy</button></div>
+                        <pre>cd /var/www/manager_video
+git remote set-url origin git@github.com:YOUR_USER/manager_video.git</pre>
+                    </div>
+                </div>
+            </div>
+
+            <!-- QUY TRÌNH DAILY -->
+            <div class="step-card">
+                <div class="step-header">
+                    <span class="step-title">🔄 Quy trình hàng ngày sau khi thiết lập xong</span>
+                </div>
+                <div class="step-body">
+                    <div class="code-block">
+                        <div class="code-block-header"><span>Máy local (Windows)</span><button class="copy-btn"
+                                onclick="copyCode(this)">Copy</button></div>
+                        <pre># Sửa code bất kỳ file nào...
+git add .
+git commit -m "fix: mô tả thay đổi"
+git push origin main
+# → Server tự động pull và reload trong vài giây</pre>
+                    </div>
+                    <div class="alert-success">
+                        ✅ Không cần SSH vào server, không cần restart thủ công. Chỉ cần <code>git push</code> là xong!
+                    </div>
+                    <div class="code-block">
+                        <div class="code-block-header"><span>Theo dõi log deploy trên server</span><button
+                                class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+                        <pre>tail -f /var/log/deploy.log
+# Hoặc xem log PM2:
+pm2 logs manager_video --lines 50</pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function copyCode(btn) {
+            const pre = btn.closest('.code-block').querySelector('pre');
+            navigator.clipboard.writeText(pre.textContent.trim()).then(() => {
+                btn.textContent = '✓ Copied';
+                setTimeout(() => btn.textContent = 'Copy', 2000);
+            });
+        }
+
+        // Highlight active sidebar link on scroll
+        const sections = document.querySelectorAll('.guide-section');
+        const sidebarLinks = document.querySelectorAll('.guide-sidebar a');
+        window.addEventListener('scroll', () => {
+            let current = '';
+            sections.forEach(s => { if (window.scrollY >= s.offsetTop - 80) current = s.id; });
+            sidebarLinks.forEach(a => { a.classList.toggle('active', a.getAttribute('href') === '#' + current); });
+        }, { passive: true });
+    </script>
+
+    <%- include('footer') %>

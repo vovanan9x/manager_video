@@ -18,14 +18,18 @@ function showToast(message, duration = 2500) {
 document.addEventListener('DOMContentLoaded', () => {
     const toggle = document.getElementById('sidebarToggle');
     const sidebar = document.getElementById('sidebar');
+    const mainContent = document.querySelector('.main-content');
     if (toggle && sidebar) {
         const collapsed = localStorage.getItem('sidebar_collapsed') === 'true';
-        if (collapsed) sidebar.style.width = '60px';
+        if (collapsed) {
+            sidebar.classList.add('collapsed');
+            if (mainContent) mainContent.classList.add('sidebar-collapsed');
+        }
 
         toggle.addEventListener('click', () => {
-            const isCollapsed = sidebar.style.width === '60px';
-            sidebar.style.width = isCollapsed ? '240px' : '60px';
-            localStorage.setItem('sidebar_collapsed', !isCollapsed);
+            const isCollapsed = sidebar.classList.toggle('collapsed');
+            if (mainContent) mainContent.classList.toggle('sidebar-collapsed', isCollapsed);
+            localStorage.setItem('sidebar_collapsed', isCollapsed);
         });
     }
 

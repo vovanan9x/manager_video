@@ -1,0 +1,706 @@
+<%- include('header') %>
+
+    <style>
+        .api-layout {
+            display: grid;
+            grid-template-columns: 220px 1fr;
+            gap: 0;
+            min-height: calc(100vh - 120px);
+        }
+
+        .api-sidebar {
+            background: var(--bg-card);
+            border-right: 1px solid var(--border);
+            padding: 1.5rem 0;
+            position: sticky;
+            top: 0;
+            height: fit-content;
+            border-radius: var(--radius) 0 0 var(--radius);
+        }
+
+        .api-sidebar a {
+            display: block;
+            padding: 0.5rem 1.25rem;
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 0.85rem;
+            border-left: 3px solid transparent;
+            transition: all 0.15s;
+        }
+
+        .api-sidebar a:hover,
+        .api-sidebar a.active {
+            color: var(--accent);
+            border-left-color: var(--accent);
+            background: rgba(99, 102, 241, 0.06);
+        }
+
+        .api-sidebar .api-section-title {
+            font-size: 0.7rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            padding: 0.75rem 1.25rem 0.25rem;
+            margin-top: 0.5rem;
+        }
+
+        .api-content {
+            padding: 0 2rem 3rem;
+        }
+
+        .api-section {
+            margin-bottom: 3rem;
+            scroll-margin-top: 1rem;
+        }
+
+        .api-section h2 {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: var(--text);
+            margin-bottom: 0.5rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .api-section h3 {
+            font-size: 1.05rem;
+            font-weight: 600;
+            color: var(--text);
+            margin: 1.5rem 0 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .endpoint-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            margin-bottom: 1.5rem;
+            overflow: hidden;
+        }
+
+        .endpoint-header {
+            padding: 0.85rem 1.25rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            background: rgba(0, 0, 0, 0.15);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .method-badge {
+            font-size: 0.72rem;
+            font-weight: 700;
+            padding: 0.2rem 0.55rem;
+            border-radius: 4px;
+            letter-spacing: 0.05em;
+        }
+
+        .method-get {
+            background: rgba(16, 185, 129, 0.15);
+            color: #10b981;
+        }
+
+        .method-post {
+            background: rgba(99, 102, 241, 0.15);
+            color: #6366f1;
+        }
+
+        .method-del {
+            background: rgba(239, 68, 68, 0.15);
+            color: #ef4444;
+        }
+
+        .endpoint-path {
+            font-family: monospace;
+            font-size: 0.95rem;
+            color: var(--text);
+        }
+
+        .endpoint-desc {
+            color: var(--text-muted);
+            font-size: 0.82rem;
+            margin-left: auto;
+        }
+
+        .endpoint-body {
+            padding: 1.25rem;
+        }
+
+        .param-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.84rem;
+            margin: 0.5rem 0 1rem;
+        }
+
+        .param-table th {
+            text-align: left;
+            padding: 0.4rem 0.75rem;
+            background: rgba(0, 0, 0, 0.15);
+            color: var(--text-muted);
+            font-weight: 600;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+        }
+
+        .param-table td {
+            padding: 0.45rem 0.75rem;
+            border-bottom: 1px solid var(--border);
+            vertical-align: top;
+        }
+
+        .param-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .param-name {
+            font-family: monospace;
+            color: var(--accent);
+        }
+
+        .param-type {
+            color: #f59e0b;
+            font-size: 0.8rem;
+        }
+
+        .param-req {
+            color: #ef4444;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .param-opt {
+            color: var(--text-muted);
+            font-size: 0.75rem;
+        }
+
+        .code-block {
+            background: #0f172a;
+            border-radius: 8px;
+            overflow: hidden;
+            margin: 0.5rem 0;
+            position: relative;
+        }
+
+        .code-block-header {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 0.4rem 0.85rem;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .code-block pre {
+            margin: 0;
+            padding: 1rem;
+            font-size: 0.82rem;
+            overflow-x: auto;
+            color: #e2e8f0;
+            line-height: 1.6;
+        }
+
+        .copy-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            color: var(--text-muted);
+            padding: 0.2rem 0.6rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.75rem;
+            transition: all 0.15s;
+        }
+
+        .copy-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            color: var(--text);
+        }
+
+        .alert-info {
+            background: rgba(99, 102, 241, 0.1);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            border-radius: 8px;
+            padding: 0.85rem 1.1rem;
+            font-size: 0.85rem;
+            color: var(--text);
+            margin-bottom: 1rem;
+        }
+
+        .tag-new {
+            background: rgba(16, 185, 129, 0.15);
+            color: #10b981;
+            font-size: 0.68rem;
+            padding: 0.1rem 0.45rem;
+            border-radius: 4px;
+            font-weight: 700;
+        }
+    </style>
+
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">📡 API Documentation</h1>
+            <p class="text-muted" style="margin-top:0.25rem">REST API để tích hợp và tự động hóa quản lí video</p>
+        </div>
+    </div>
+
+    <div class="api-layout">
+        <!-- Sidebar navigation -->
+        <div class="api-sidebar">
+            <div class="api-section-title">Bắt đầu</div>
+            <a href="#auth">🔐 Xác thực</a>
+            <a href="#base-url">🌐 Base URL</a>
+
+            <div class="api-section-title">Videos</div>
+            <a href="#list-videos">Danh sách video</a>
+            <a href="#get-link">Lấy link video</a>
+            <a href="#upload-file">Upload file</a>
+            <a href="#remote-upload">Upload từ URL</a>
+            <a href="#drive-upload">Upload từ Drive <span class="tag-new">NEW</span></a>
+            <a href="#delete-video">Xóa video</a>
+
+            <div class="api-section-title">Tiện ích</div>
+            <a href="#list-servers">Danh sách server <span class="tag-new">NEW</span></a>
+            <a href="#list-folders">Danh sách folder <span class="tag-new">NEW</span></a>
+        </div>
+
+        <!-- Main content -->
+        <div class="api-content">
+
+            <!-- AUTH -->
+            <div class="api-section" id="auth">
+                <h2>🔐 Xác thực</h2>
+                <p class="text-muted">Tất cả API yêu cầu xác thực bằng một trong hai cách:</p>
+
+                <h3>1. API Key (khuyến nghị cho tích hợp)</h3>
+                <p class="text-muted" style="font-size:0.85rem">Lấy API Key tại <a href="/settings"
+                        style="color:var(--accent)">⚙️ Cài đặt</a>. Gửi key qua header hoặc query string:</p>
+                <div class="code-block">
+                    <div class="code-block-header"><span>Header</span><button class="copy-btn"
+                            onclick="copyCode(this)">Copy</button></div>
+                    <pre>X-Api-Key: your_api_key_here</pre>
+                </div>
+                <div class="code-block">
+                    <div class="code-block-header"><span>Query String</span><button class="copy-btn"
+                            onclick="copyCode(this)">Copy</button></div>
+                    <pre>GET /api/videos?api_key=your_api_key_here</pre>
+                </div>
+
+                <h3>2. Session Cookie (sau khi đăng nhập)</h3>
+                <p class="text-muted" style="font-size:0.85rem">Tự động hoạt động khi đã đăng nhập vào web app. Dùng cho
+                    testing trực tiếp trên browser.</p>
+            </div>
+
+            <!-- BASE URL -->
+            <div class="api-section" id="base-url">
+                <h2>🌐 Base URL</h2>
+                <div class="code-block">
+                    <div class="code-block-header"><span>Base URL</span></div>
+                    <pre><% const settingDomain = settings && settings.domain ? settings.domain : 'http://localhost:3000'; %><%= settingDomain %>/api</pre>
+                </div>
+                <div class="alert-info">
+                    💡 Tất cả request/response đều dùng <strong>JSON</strong>. Thêm header
+                    <code>Content-Type: application/json</code> cho POST requests.
+                </div>
+            </div>
+
+            <!-- LIST VIDEOS -->
+            <div class="api-section" id="list-videos">
+                <h2>🎥 Videos</h2>
+
+                <div class="endpoint-card">
+                    <div class="endpoint-header">
+                        <span class="method-badge method-get">GET</span>
+                        <span class="endpoint-path">/api/videos</span>
+                        <span class="endpoint-desc">Lấy danh sách video</span>
+                    </div>
+                    <div class="endpoint-body">
+                        <p class="text-muted" style="font-size:0.85rem">Query parameters tùy chọn:</p>
+                        <table class="param-table">
+                            <tr>
+                                <th>Tham số</th>
+                                <th>Kiểu</th>
+                                <th>Mô tả</th>
+                            </tr>
+                            <tr>
+                                <td class="param-name">server_id</td>
+                                <td class="param-type">number</td>
+                                <td>Lọc theo server</td>
+                            </tr>
+                            <tr>
+                                <td class="param-name">folder_id</td>
+                                <td class="param-type">number</td>
+                                <td>Lọc theo thư mục</td>
+                            </tr>
+                            <tr>
+                                <td class="param-name">status</td>
+                                <td class="param-type">string</td>
+                                <td><code>pending</code> | <code>uploading</code> | <code>done</code> |
+                                    <code>error</code> | <code>stopped</code></td>
+                            </tr>
+                            <tr>
+                                <td class="param-name">limit</td>
+                                <td class="param-type">number</td>
+                                <td>Số lượng kết quả (mặc định: 50)</td>
+                            </tr>
+                            <tr>
+                                <td class="param-name">offset</td>
+                                <td class="param-type">number</td>
+                                <td>Bỏ qua N kết quả đầu (mặc định: 0)</td>
+                            </tr>
+                        </table>
+                        <div class="code-block">
+                            <div class="code-block-header"><span>curl</span><button class="copy-btn"
+                                    onclick="copyCode(this)">Copy</button></div>
+                            <pre>curl "<%= settingDomain %>/api/videos?status=done&limit=10" \
+  -H "X-Api-Key: your_api_key"</pre>
+                        </div>
+                        <div class="code-block">
+                            <div class="code-block-header"><span>Response</span></div>
+                            <pre>{ "success": true, "total": 42, "videos": [ { "id": 1, "title": "...", "status": "done", "remote_path": "..." } ] }</pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- GET LINK -->
+            <div class="api-section" id="get-link">
+                <div class="endpoint-card">
+                    <div class="endpoint-header">
+                        <span class="method-badge method-get">GET</span>
+                        <span class="endpoint-path">/api/videos/:id/link</span>
+                        <span class="endpoint-desc">Lấy link xem video</span>
+                    </div>
+                    <div class="endpoint-body">
+                        <div class="code-block">
+                            <div class="code-block-header"><span>curl</span><button class="copy-btn"
+                                    onclick="copyCode(this)">Copy</button></div>
+                            <pre>curl "<%= settingDomain %>/api/videos/1/link" \
+  -H "X-Api-Key: your_api_key"</pre>
+                        </div>
+                        <div class="code-block">
+                            <div class="code-block-header"><span>Response</span></div>
+                            <pre>{ "success": true, "video": { "id": 1, "title": "...", "link": "https://cdn.example.com/videos/folder/file.mp4" } }</pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- UPLOAD FILE -->
+            <div class="api-section" id="upload-file">
+                <div class="endpoint-card">
+                    <div class="endpoint-header">
+                        <span class="method-badge method-post">POST</span>
+                        <span class="endpoint-path">/api/videos/upload</span>
+                        <span class="endpoint-desc">Upload file trực tiếp (multipart/form-data)</span>
+                    </div>
+                    <div class="endpoint-body">
+                        <table class="param-table">
+                            <tr>
+                                <th>Tham số</th>
+                                <th>Bắt buộc</th>
+                                <th>Mô tả</th>
+                            </tr>
+                            <tr>
+                                <td class="param-name">video</td>
+                                <td class="param-req">✓</td>
+                                <td>File video (form-data field)</td>
+                            </tr>
+                            <tr>
+                                <td class="param-name">title</td>
+                                <td class="param-req">✓</td>
+                                <td>Tiêu đề video</td>
+                            </tr>
+                            <tr>
+                                <td class="param-name">server_id</td>
+                                <td class="param-req">✓</td>
+                                <td>ID server đích</td>
+                            </tr>
+                            <tr>
+                                <td class="param-name">folder_id</td>
+                                <td class="param-opt">tuỳ chọn</td>
+                                <td>ID thư mục đích</td>
+                            </tr>
+                            <tr>
+                                <td class="param-name">description</td>
+                                <td class="param-opt">tuỳ chọn</td>
+                                <td>Mô tả video</td>
+                            </tr>
+                        </table>
+                        <div class="code-block">
+                            <div class="code-block-header"><span>curl</span><button class="copy-btn"
+                                    onclick="copyCode(this)">Copy</button></div>
+                            <pre>curl -X POST "<%= settingDomain %>/api/videos/upload" \
+  -H "X-Api-Key: your_api_key" \
+  -F "video=@/path/to/video.mp4" \
+  -F "title=Tên Video" \
+  -F "server_id=1" \
+  -F "folder_id=2"</pre>
+                        </div>
+                        <div class="code-block">
+                            <div class="code-block-header"><span>Response</span></div>
+                            <pre>{ "success": true, "videoId": 7, "message": "Upload started" }</pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- REMOTE UPLOAD -->
+            <div class="api-section" id="remote-upload">
+                <div class="endpoint-card">
+                    <div class="endpoint-header">
+                        <span class="method-badge method-post">POST</span>
+                        <span class="endpoint-path">/api/videos/remote-upload</span>
+                        <span class="endpoint-desc">Upload từ URL bất kỳ</span>
+                    </div>
+                    <div class="endpoint-body">
+                        <table class="param-table">
+                            <tr>
+                                <th>Tham số</th>
+                                <th>Bắt buộc</th>
+                                <th>Mô tả</th>
+                            </tr>
+                            <tr>
+                                <td class="param-name">url</td>
+                                <td class="param-req">✓</td>
+                                <td>URL trực tiếp của file video (http/https)</td>
+                            </tr>
+                            <tr>
+                                <td class="param-name">title</td>
+                                <td class="param-req">✓</td>
+                                <td>Tiêu đề video</td>
+                            </tr>
+                            <tr>
+                                <td class="param-name">server_id</td>
+                                <td class="param-req">✓</td>
+                                <td>ID server đích</td>
+                            </tr>
+                            <tr>
+                                <td class="param-name">folder_id</td>
+                                <td class="param-opt">tuỳ chọn</td>
+                                <td>ID thư mục đích</td>
+                            </tr>
+                            <tr>
+                                <td class="param-name">description</td>
+                                <td class="param-opt">tuỳ chọn</td>
+                                <td>Mô tả video</td>
+                            </tr>
+                        </table>
+                        <div class="code-block">
+                            <div class="code-block-header"><span>curl</span><button class="copy-btn"
+                                    onclick="copyCode(this)">Copy</button></div>
+                            <pre>curl -X POST "<%= settingDomain %>/api/videos/remote-upload" \
+  -H "X-Api-Key: your_api_key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://example.com/video.mp4",
+    "title": "Tên Video",
+    "server_id": 2,
+    "folder_id": 3,
+    "description": "Mô tả tuỳ chọn"
+  }'</pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- DRIVE UPLOAD -->
+            <div class="api-section" id="drive-upload">
+                <div class="endpoint-card">
+                    <div class="endpoint-header">
+                        <span class="method-badge method-post">POST</span>
+                        <span class="endpoint-path">/api/videos/drive-upload</span>
+                        <span class="endpoint-desc">Upload từ Google Drive <span class="tag-new">NEW</span></span>
+                    </div>
+                    <div class="endpoint-body">
+                        <div class="alert-info">
+                            📌 File Google Drive phải được <strong>chia sẻ công khai</strong> ("Anyone with the link can
+                            view"). File private sẽ trả về lỗi xác thực.
+                        </div>
+                        <table class="param-table">
+                            <tr>
+                                <th>Tham số</th>
+                                <th>Bắt buộc</th>
+                                <th>Mô tả</th>
+                            </tr>
+                            <tr>
+                                <td class="param-name">drive_url</td>
+                                <td class="param-req">✓</td>
+                                <td>Link Google Drive hoặc File ID thô</td>
+                            </tr>
+                            <tr>
+                                <td class="param-name">title</td>
+                                <td class="param-req">✓</td>
+                                <td>Tiêu đề video</td>
+                            </tr>
+                            <tr>
+                                <td class="param-name">server_id</td>
+                                <td class="param-req">✓</td>
+                                <td>ID server đích</td>
+                            </tr>
+                            <tr>
+                                <td class="param-name">folder_id</td>
+                                <td class="param-opt">tuỳ chọn</td>
+                                <td>ID thư mục đích</td>
+                            </tr>
+                            <tr>
+                                <td class="param-name">description</td>
+                                <td class="param-opt">tuỳ chọn</td>
+                                <td>Mô tả video</td>
+                            </tr>
+                            <tr>
+                                <td class="param-name">filename</td>
+                                <td class="param-opt">tuỳ chọn</td>
+                                <td>Tên file tùy chỉnh (không cần đuôi .mp4)</td>
+                            </tr>
+                        </table>
+
+                        <p class="text-muted" style="font-size:0.83rem; margin-top:0.5rem">📎 Các format link được hỗ
+                            trợ:</p>
+                        <div class="code-block">
+                            <div class="code-block-header"><span>Các dạng drive_url hợp lệ</span></div>
+                            <pre>https://drive.google.com/file/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms/view
+https://drive.google.com/open?id=1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms
+1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms  ← raw File ID</pre>
+                        </div>
+                        <div class="code-block">
+                            <div class="code-block-header"><span>curl</span><button class="copy-btn"
+                                    onclick="copyCode(this)">Copy</button></div>
+                            <pre>curl -X POST "<%= settingDomain %>/api/videos/drive-upload" \
+  -H "X-Api-Key: your_api_key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "drive_url": "https://drive.google.com/file/d/1ABC.../view",
+    "title": "Phim Hành Động Tập 1",
+    "server_id": 2,
+    "folder_id": 5,
+    "description": "Tập 1 full HD",
+    "filename": "phim-hanh-dong-tap-1"
+  }'</pre>
+                        </div>
+                        <div class="code-block">
+                            <div class="code-block-header"><span>Response – khởi tạo thành công</span></div>
+                            <pre>{ "success": true, "videoId": 12, "message": "Google Drive upload started", "fileId": "1ABC..." }</pre>
+                        </div>
+                        <div class="code-block">
+                            <div class="code-block-header"><span>Theo dõi tiến trình</span><button class="copy-btn"
+                                    onclick="copyCode(this)">Copy</button></div>
+                            <pre># Lấy trạng thái upload (polling mỗi 5 giây)
+curl "<%= settingDomain %>/api/videos/12/link" \
+  -H "X-Api-Key: your_api_key"
+
+# Khi done: status = "done" và link được trả về
+# Khi lỗi:  status = "error"</pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- DELETE VIDEO -->
+            <div class="api-section" id="delete-video">
+                <div class="endpoint-card">
+                    <div class="endpoint-header">
+                        <span class="method-badge method-del">DELETE</span>
+                        <span class="endpoint-path">/api/videos/:id</span>
+                        <span class="endpoint-desc">Xóa video</span>
+                    </div>
+                    <div class="endpoint-body">
+                        <div class="code-block">
+                            <div class="code-block-header"><span>curl</span><button class="copy-btn"
+                                    onclick="copyCode(this)">Copy</button></div>
+                            <pre>curl -X DELETE "<%= settingDomain %>/api/videos/7" \
+  -H "X-Api-Key: your_api_key"</pre>
+                        </div>
+                        <div class="code-block">
+                            <div class="code-block-header"><span>Response</span></div>
+                            <pre>{ "success": true, "message": "Video deleted" }</pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- LIST SERVERS -->
+            <div class="api-section" id="list-servers">
+                <h2>⚙️ Tiện ích</h2>
+                <div class="endpoint-card">
+                    <div class="endpoint-header">
+                        <span class="method-badge method-get">GET</span>
+                        <span class="endpoint-path">/api/servers</span>
+                        <span class="endpoint-desc">Danh sách servers đang hoạt động <span
+                                class="tag-new">NEW</span></span>
+                    </div>
+                    <div class="endpoint-body">
+                        <div class="code-block">
+                            <div class="code-block-header"><span>curl</span><button class="copy-btn"
+                                    onclick="copyCode(this)">Copy</button></div>
+                            <pre>curl "<%= settingDomain %>/api/servers" \
+  -H "X-Api-Key: your_api_key"</pre>
+                        </div>
+                        <div class="code-block">
+                            <div class="code-block-header"><span>Response</span></div>
+                            <pre>{ "success": true, "servers": [ { "id": 1, "name": "Local Storage", "type": "local" }, { "id": 2, "name": "Hetzner SFTP", "type": "sftp" } ] }</pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- LIST FOLDERS -->
+            <div class="api-section" id="list-folders">
+                <div class="endpoint-card">
+                    <div class="endpoint-header">
+                        <span class="method-badge method-get">GET</span>
+                        <span class="endpoint-path">/api/folders</span>
+                        <span class="endpoint-desc">Danh sách thư mục <span class="tag-new">NEW</span></span>
+                    </div>
+                    <div class="endpoint-body">
+                        <table class="param-table">
+                            <tr>
+                                <th>Query</th>
+                                <th>Kiểu</th>
+                                <th>Mô tả</th>
+                            </tr>
+                            <tr>
+                                <td class="param-name">server_id</td>
+                                <td class="param-type">number</td>
+                                <td>Lọc theo server (tuỳ chọn)</td>
+                            </tr>
+                        </table>
+                        <div class="code-block">
+                            <div class="code-block-header"><span>curl</span><button class="copy-btn"
+                                    onclick="copyCode(this)">Copy</button></div>
+                            <pre>curl "<%= settingDomain %>/api/folders?server_id=2" \
+  -H "X-Api-Key: your_api_key"</pre>
+                        </div>
+                        <div class="code-block">
+                            <div class="code-block-header"><span>Response</span></div>
+                            <pre>{ "success": true, "folders": [ { "id": 3, "name": "phim", "path": "phim", "server_id": 2 } ] }</pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div><!-- /api-content -->
+    </div><!-- /api-layout -->
+
+    <script>
+        function copyCode(btn) {
+            const pre = btn.closest('.code-block').querySelector('pre');
+            navigator.clipboard.writeText(pre.textContent.trim()).then(() => {
+                btn.textContent = '✓ Copied';
+                setTimeout(() => btn.textContent = 'Copy', 2000);
+            });
+        }
+        // Highlight active sidebar link on scroll
+        const sections = document.querySelectorAll('.api-section');
+        const sidebarLinks = document.querySelectorAll('.api-sidebar a');
+        window.addEventListener('scroll', () => {
+            let current = '';
+            sections.forEach(s => { if (window.scrollY >= s.offsetTop - 80) current = s.id; });
+            sidebarLinks.forEach(a => { a.classList.toggle('active', a.getAttribute('href') === '#' + current); });
+        }, { passive: true });
+    </script>
+
+    <%- include('footer') %>
