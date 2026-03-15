@@ -193,7 +193,7 @@
         };
     }
 
-    async function startLocalUpload(){
+    function startLocalUpload(){
         const c=getCommonData();
         if(!c.title) return alert('Vui lòng nhập tiêu đề');
         if(!c.server_id) return alert('Vui lòng chọn server');
@@ -202,13 +202,47 @@
         const fd=new FormData();
         Object.entries(c).forEach(([k,v])=>fd.append(k,v));
         fd.append('video',file);
-        showProgress(true); updateProgress(0,'⏳ Đang upload...','Đang gửi dữ liệu...');
-        try{
-            const res=await fetch('/videos/upload/local',{method:'POST',body:fd});
-            const data=await res.json();
-            if(data.success) startSseForVideo(data.videoId);
-            else updateProgress(0,'❌ '+(data.error||'Lỗi'),'');
-        }catch(err){ updateProgress(0,'❌ Lỗi kết nối',err.message); }
+
+        showProgress(true);
+        updateProgress(0,'⬆️ Đang gửi file lên server...','0%');
+        document.getElementById('uploadLocalBtn').disabled=true;
+
+        const xhr=new XMLHttpRequest();
+
+        // Real-time upload progress (bytes sent → server)
+        xhr.upload.addEventListener('progress',function(ev){
+            if(!ev.lengthComputable) return;
+            const pct=Math.round((ev.loaded/ev.total)*100);
+            const sent=formatBytes(ev.loaded), total=formatBytes(ev.total);
+            updateProgress(pct,'⬆️ Đang gửi file lên server...', sent+' / '+total);
+        });
+
+        // Upload bytes done, server đang xử lý
+        xhr.upload.addEventListener('load',function(){
+            updateProgress(100,'⚙️ Server đang xử lý...','Vui lòng chờ...');
+        });
+
+        xhr.addEventListener('load',function(){
+            document.getElementById('uploadLocalBtn').disabled=false;
+            try{
+                const data=JSON.parse(xhr.responseText);
+                if(data.success) startSseForVideo(data.videoId);
+                else updateProgress(0,'❌ '+(data.error||'Lỗi'),'');
+            }catch(e){ updateProgress(0,'❌ Lỗi phản hồi server',''); }
+        });
+
+        xhr.addEventListener('error',function(){
+            document.getElementById('uploadLocalBtn').disabled=false;
+            updateProgress(0,'❌ Lỗi kết nối','Kiểm tra mạng và thử lại');
+        });
+
+        xhr.addEventListener('abort',function(){
+            document.getElementById('uploadLocalBtn').disabled=false;
+            updateProgress(0,'⏹ Đã huỷ','');
+        });
+
+        xhr.open('POST','/videos/upload/local');
+        xhr.send(fd);
     }
 
     async function startRemoteUpload(){
