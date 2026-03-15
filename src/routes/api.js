@@ -354,12 +354,9 @@ router.post('/videos/drive-upload', requireSessionUser, async (req, res) => {
                 stream.on('error', reject);
             });
 
-            // Now upload temp file to server
-            const controller = { cancelled: false };
-            await uploadToServer(videoId, tmpPath, server, remotePath, controller);
+            // Now upload temp file to server (queue-aware — cleanup handled inside uploadService)
+            uploadToServer(videoId, tmpPath, server, remotePath);
 
-            // Cleanup temp file
-            try { fs.unlinkSync(tmpPath); } catch (_) { }
         } catch (err) {
             console.error('[Drive Upload Error]', err.message);
             db.prepare("UPDATE videos SET status='error' WHERE id=?").run(videoId);
