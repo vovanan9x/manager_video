@@ -362,6 +362,23 @@ router.post('/videos/drive-upload', requireSessionUser, async (req, res) => {
                 stream.on('error', reject);
             });
 
+            // ── Sanity check: đảm bảo file thật, không phải HTML error page ──────
+            const tmpStat = require('fs').statSync(tmpPath);
+            if (tmpStat.size < 100 * 1024) { // < 100 KB → kiểm tra nội dung
+                const head = Buffer.alloc(512);
+                const fd = require('fs').openSync(tmpPath, 'r');
+                require('fs').readSync(fd, head, 0, 512, 0);
+                require('fs').closeSync(fd);
+                const headStr = head.toString('utf8').toLowerCase();
+                if (headStr.includes('<html') || headStr.includes('<!doctype') ||
+                    headStr.includes('quota') || headStr.includes('too many') ||
+                    headStr.includes('virus scan') || headStr.includes('google')) {
+                    require('fs').unlinkSync(tmpPath); // xóa file rác
+                    throw new Error(`Google Drive: Tải về thất bại — nhận HTML thay vì video (${tmpStat.size} bytes). File có thể bị giới hạn lượt tải hoặc chưa chia sẻ công khai.`);
+                }
+            }
+            // ────────────────────────────────────────────────────────────────────
+
             // Upload temp file to server — gọi nội tại _doUploadToServer trực tiếp
             // vì đã nằm trong slot queue rồi, không cần enqueue lần nữa
             await require('../services/uploadService')._doUploadToServer(videoId, tmpPath, server, remotePath);
