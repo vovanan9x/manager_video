@@ -13,8 +13,11 @@ router.get('/', requireAdmin, (req, res) => {
 
 // POST /settings — admin only
 router.post('/', requireAdmin, (req, res) => {
-    const { domain } = req.body;
+    const { domain, api_key } = req.body;
     db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('domain', (domain || '').trim());
+    if (api_key && api_key.trim()) {
+        db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('api_key', api_key.trim());
+    }
     const settings = db.prepare('SELECT key, value FROM settings').all();
     const settingsMap = {};
     settings.forEach(s => settingsMap[s.key] = s.value);
