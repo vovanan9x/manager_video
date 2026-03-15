@@ -1,7 +1,10 @@
 <%- include('header', { pageTitle: 'Servers - VideoManager' }) %>
 
 <div class="page-header">
-    <h1 class="page-title">🖥️ Quản lí Servers</h1>
+    <div style="display:flex;align-items:center;gap:.75rem">
+        <h1 class="page-title">🖥️ Quản lí Servers</h1>
+        <button class="btn btn-secondary btn-xs" onclick="loadAllDiskStats()" id="refreshStatsBtn" style="margin-top:.15rem">🔄 Cập nhật Disk</button>
+    </div>
 </div>
 
 <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
@@ -95,10 +98,29 @@
                         </span>
                     </div>
                 </div>
-                <div class="text-xs text-muted" style="margin-bottom:.75rem;font-family:monospace"><%= s.root_path %></div>
+                <div class="text-xs text-muted" style="margin-bottom:.5rem;font-family:monospace"><%= s.root_path %></div>
                 <% if(s.base_url){ %>
-                    <div class="text-xs text-secondary" style="margin-bottom:.75rem"><%= s.base_url %></div>
+                    <div class="text-xs text-secondary" style="margin-bottom:.5rem"><%= s.base_url %></div>
                 <% } %>
+
+                <%# Video stats (server-rendered, fast) %>
+                <div class="text-xs" style="color:var(--text-muted);margin-bottom:.5rem">
+                    📹 <strong style="color:var(--text-secondary)"><%= s.video_count %></strong> video
+                    &nbsp;·&nbsp;
+                    <strong style="color:var(--text-secondary)"><span class="fmtbytes"><%= s.video_size %></span></strong>
+                </div>
+
+                <%# Disk bar (async, loaded via JS) %>
+                <div class="server-disk-wrap" data-server-id="<%= s.id %>" style="margin-bottom:.65rem">
+                    <div class="disk-bar-header" style="display:flex;justify-content:space-between;font-size:.7rem;color:var(--text-muted);margin-bottom:.2rem">
+                        <span class="disk-label">⏳ Đang tải dung lượng...</span>
+                        <span class="disk-free" style="color:var(--accent-mid);font-weight:600"></span>
+                    </div>
+                    <div style="height:5px;border-radius:4px;background:var(--border-color);overflow:hidden">
+                        <div class="disk-bar" style="height:100%;border-radius:4px;background:linear-gradient(90deg,var(--accent-start),var(--accent-end));width:0%;transition:width .6s ease"></div>
+                    </div>
+                </div>
+
                 <div style="display:flex;gap:.5rem">
                     <button class="btn btn-xs btn-secondary" onclick="testServer(<%= s.id %>,this)">🔌 Test</button>
                     <button class="btn btn-xs btn-secondary" onclick="openEditServer(<%= s.id %>)">✏️ Sửa</button>
@@ -183,6 +205,52 @@
         </form>
     </div>
 </div>
+
+<script>
+    function formatBytes(b){if(!b||b===0)return'0 B';const s=['B','KB','MB','GB','TB'];const i=Math.floor(Math.log(b)/Math.log(1024));return(b/Math.pow(1024,i)).toFixed(1)+' '+s[i];}
+
+    // Format inline byte spans (server-rendered raw numbers)
+    document.querySelectorAll('.fmtbytes').forEach(el=>{
+        const n = parseInt(el.textContent, 10);
+        el.textContent = isNaN(n) ? el.textContent : formatBytes(n);
+    });
+
+    async function loadDiskForServer(serverId) {
+        const wrap = document.querySelector(`.server-disk-wrap[data-server-id="${serverId}"]`);
+        if (!wrap) return;
+        try {
+            const res = await fetch(`/servers/disk/${serverId}`);
+            const d = await res.json();
+            const label = wrap.querySelector('.disk-label');
+            const free  = wrap.querySelector('.disk-free');
+            const bar   = wrap.querySelector('.disk-bar');
+            if (!d.ok || !d.total) {
+                label.textContent = 'Không có thông tin dung lượng';
+                free.textContent  = '';
+                bar.style.width   = '0%';
+                return;
+            }
+            const usedPct = Math.min(100, Math.round((d.used / d.total) * 100));
+            bar.style.width   = usedPct + '%';
+            label.textContent = `Đã dùng: ${formatBytes(d.used)} / ${formatBytes(d.total)} (${usedPct}%)`;
+            free.textContent  = formatBytes(d.free) + ' trống';
+        } catch(_) {
+            const label = wrap.querySelector('.disk-label');
+            if (label) label.textContent = 'Không thể tải dung lượng';
+        }
+    }
+
+    async function loadAllDiskStats() {
+        const btn = document.getElementById('refreshStatsBtn');
+        if (btn) { btn.disabled = true; btn.textContent = '⏳ Đang tải...'; }
+        const wraps = document.querySelectorAll('.server-disk-wrap[data-server-id]');
+        await Promise.all(Array.from(wraps).map(w => loadDiskForServer(w.dataset.serverId)));
+        if (btn) { btn.textContent = '✅ Đã cập nhật'; setTimeout(()=>{ btn.textContent = '🔄 Cập nhật Disk'; btn.disabled = false; }, 2000); }
+    }
+
+    // Load disk stats on page load
+    window.addEventListener('DOMContentLoaded', () => loadAllDiskStats());
+</script>
 
 <script>
     const serverData = <%- JSON.stringify(servers) %>;

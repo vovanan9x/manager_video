@@ -1,4 +1,5 @@
 const SftpClient = require('ssh2-sftp-client');
+const { Client: SshClient } = require('ssh2');
 const ftp = require('ftp');
 const fs = require('fs');
 const path = require('path');
@@ -25,7 +26,7 @@ async function testConnection(server) {
             };
             if (server.private_key) {
                 connOpts.privateKey = server.private_key;
-                if (server.password) connOpts.passphrase = server.password; // password = passphrase for key
+                if (server.password) connOpts.passphrase = server.password;
             } else if (server.password) {
                 connOpts.password = server.password;
             }
@@ -51,7 +52,13 @@ async function testConnection(server) {
     return { ok: false, message: 'Unknown server type' };
 }
 
+/**
+ * Get disk info for a server.
+ * Returns { total, used, free } in bytes.
+ * Returns { total:0, used:0, free:0 } if not available.
+ */
 async function getServerDiskInfo(server) {
+    // ── LOCAL ──────────────────────────────────────────────
     if (server.type === 'local') {
         try {
             const diskInfo = require('node-disk-info');
@@ -66,10 +73,87 @@ async function getServerDiskInfo(server) {
                 };
             }
         } catch (_) { }
-        // Fallback
-        const { statSync } = require('fs');
         return { total: 0, used: 0, free: 0 };
     }
+
+    // ── SFTP — chạy `df -k <root_path>` qua SSH exec ──────
+    if (server.type === 'sftp') {
+        return new Promise((resolve) => {
+            const conn = new SshClient();
+            const result = { total: 0, used: 0, free: 0 };
+            let settled = false;
+            const done = (val) => { if (!settled) { settled = true; resolve(val); } };
+
+            const timeout = setTimeout(() => {
+                try { conn.end(); } catch (_) {}
+                done(result);
+            }, 12000);
+
+            conn.on('ready', () => {
+                const remotePath = (server.root_path || '/').replace(/\\/g, '/');
+                conn.exec(`df -k "${remotePath}"`, (err, stream) => {
+                    if (err) { clearTimeout(timeout); try { conn.end(); } catch (_) {} done(result); return; }
+                    let output = '';
+                    stream.on('data', (d) => { output += d.toString(); });
+                    stream.stderr.on('data', () => {});
+                    stream.on('close', () => {
+                        clearTimeout(timeout);
+                        try { conn.end(); } catch (_) {}
+                        // Parse df -k output (2nd line: Filesystem 1K-blocks Used Available ...)
+                        const lines = output.trim().split('\n');
+                        if (lines.length >= 2) {
+                            const parts = lines[lines.length - 1].trim().split(/\s+/);
+                            // df -k columns: Filesystem, 1K-blocks, Used, Available, Use%, Mounted
+                            const kBlocks  = parseInt(parts[1], 10);
+                            const kUsed    = parseInt(parts[2], 10);
+                            const kAvail   = parseInt(parts[3], 10);
+                            if (!isNaN(kBlocks) && !isNaN(kUsed) && !isNaN(kAvail)) {
+                                done({ total: kBlocks * 1024, used: kUsed * 1024, free: kAvail * 1024 });
+                                return;
+                            }
+                        }
+                        done(result);
+                    });
+                });
+            });
+
+            conn.on('error', () => { clearTimeout(timeout); done(result); });
+
+            const connOpts = {
+                host: server.host,
+                port: server.port || 22,
+                username: server.username,
+                readyTimeout: 10000,
+            };
+            if (server.private_key) {
+                connOpts.privateKey = server.private_key;
+                if (server.password) connOpts.passphrase = server.password;
+            } else if (server.password) {
+                connOpts.password = server.password;
+            }
+            try { conn.connect(connOpts); } catch (e) { clearTimeout(timeout); done(result); }
+        });
+    }
+
+    // ── HTTP — gọi GET <base_url>/stats ───────────────────
+    if (server.type === 'http') {
+        try {
+            const axios = require('axios');
+            const statsUrl = server.base_url ? server.base_url.replace(/\/$/, '') + '/stats' : null;
+            if (!statsUrl) return { total: 0, used: 0, free: 0 };
+            const resp = await axios.get(statsUrl, { timeout: 6000 });
+            const d = resp.data;
+            if (d && typeof d.free === 'number') {
+                return {
+                    total: d.total || 0,
+                    used:  d.used  || 0,
+                    free:  d.free  || 0,
+                };
+            }
+        } catch (_) {}
+        return { total: 0, used: 0, free: 0 };
+    }
+
     return { total: 0, used: 0, free: 0 };
 }
 

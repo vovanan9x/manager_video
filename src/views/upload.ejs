@@ -29,12 +29,26 @@
         <div class="form-row">
             <div class="form-group">
                 <label class="form-label">Server *</label>
-                <select id="videoServer" class="form-control" onchange="onServerChange(this.value)">
-                    <option value="">-- Chọn server --</option>
-                    <% servers.forEach(function(s){ %>
-                        <option value="<%= s.id %>"><%= s.name %> (<%= s.type %>)</option>
-                    <% }); %>
-                </select>
+                <div style="display:flex;gap:.4rem;align-items:center">
+                    <select id="videoServer" class="form-control" onchange="onServerChange(this.value)">
+                        <option value="">-- Chọn server --</option>
+                        <% servers.forEach(function(s){ %>
+                            <option value="<%= s.id %>"><%= s.name %> (<%= s.type %>)</option>
+                        <% }); %>
+                    </select>
+                    <button type="button" id="autoSelectBtn" class="btn btn-secondary" style="white-space:nowrap;min-width:5.5rem" onclick="autoSelectServer()" title="Tự động chọn server còn nhiều dung lượng nhất">🤖 Auto</button>
+                </div>
+                <!-- Disk bar -->
+                <div id="diskBarWrap" style="display:none;margin-top:.45rem">
+                    <div style="display:flex;justify-content:space-between;font-size:.72rem;color:var(--text-muted);margin-bottom:.2rem">
+                        <span id="diskBarLabel">Đang tải dung lượng...</span>
+                        <span id="diskBarFree" style="color:var(--accent-mid);font-weight:600"></span>
+                    </div>
+                    <div style="height:5px;border-radius:4px;background:var(--border-color);overflow:hidden">
+                        <div id="diskBar" style="height:100%;border-radius:4px;background:linear-gradient(90deg,var(--accent-start),var(--accent-end));width:0%;transition:width .5s ease"></div>
+                    </div>
+                    <div id="diskBarDetail" style="font-size:.68rem;color:var(--text-muted);margin-top:.25rem"></div>
+                </div>
             </div>
             <div class="form-group">
                 <label class="form-label">Thư mục <span style="font-weight:400;text-transform:none;font-size:.72rem;color:var(--text-muted)">(tuỳ chọn)</span></label>
@@ -117,6 +131,82 @@
 </script>
 
 <script>
+    // ── Disk stats cache ──────────────────────────────────
+    let _diskStats = null; // Array of { id, name, free, used, total, ... }
+
+    async function loadDiskStats() {
+        try {
+            const res = await fetch('/servers/api/stats');
+            if (res.ok) _diskStats = await res.json();
+        } catch (_) {}
+        // Enrich dropdown options with free space hint
+        if (_diskStats) {
+            const sel = document.getElementById('videoServer');
+            Array.from(sel.options).forEach(opt => {
+                if (!opt.value) return;
+                const info = _diskStats.find(s => String(s.id) === String(opt.value));
+                if (info && info.free > 0) {
+                    // Append free space to option text (strip old hint first)
+                    const base = opt.textContent.replace(/\s·\s.*$/, '');
+                    opt.textContent = base + ' · ' + formatBytes(info.free) + ' trống';
+                }
+            });
+        }
+        // Update disk bar for currently selected server
+        const current = document.getElementById('videoServer').value;
+        if (current) updateDiskBar(current);
+    }
+
+    function updateDiskBar(serverId) {
+        const wrap = document.getElementById('diskBarWrap');
+        if (!serverId) { wrap.style.display = 'none'; return; }
+        wrap.style.display = '';
+        if (!_diskStats) {
+            document.getElementById('diskBarLabel').textContent = 'Đang tải dung lượng...';
+            document.getElementById('diskBarFree').textContent = '';
+            document.getElementById('diskBar').style.width = '0%';
+            document.getElementById('diskBarDetail').textContent = '';
+            return;
+        }
+        const info = _diskStats.find(s => String(s.id) === String(serverId));
+        if (!info || !info.total) {
+            document.getElementById('diskBarLabel').textContent = 'Không có thông tin dung lượng';
+            document.getElementById('diskBarFree').textContent = '';
+            document.getElementById('diskBar').style.width = '0%';
+            document.getElementById('diskBarDetail').textContent =
+                info ? `📹 ${info.video_count} video · ${formatBytes(info.video_size)}` : '';
+            return;
+        }
+        const usedPct = Math.min(100, Math.round((info.used / info.total) * 100));
+        document.getElementById('diskBar').style.width = usedPct + '%';
+        document.getElementById('diskBarLabel').textContent = `Đã dùng: ${formatBytes(info.used)} / ${formatBytes(info.total)} (${usedPct}%)`;
+        document.getElementById('diskBarFree').textContent = formatBytes(info.free) + ' trống';
+        document.getElementById('diskBarDetail').textContent =
+            `📹 ${info.video_count} video · ${formatBytes(info.video_size)}`;
+    }
+
+    async function autoSelectServer() {
+        const btn = document.getElementById('autoSelectBtn');
+        btn.disabled = true;
+        btn.textContent = '⏳...';
+        try {
+            const res = await fetch('/servers/api/auto-select');
+            const data = await res.json();
+            if (data.server_id) {
+                const sel = document.getElementById('videoServer');
+                sel.value = String(data.server_id);
+                onServerChange(String(data.server_id));
+                const hint = data.free > 0 ? ` (${formatBytes(data.free)} trống)` : '';
+                btn.textContent = '✅ ' + (data.name || 'Auto') + hint;
+            } else {
+                btn.textContent = '⚠️ Không có server';
+            }
+        } catch (e) {
+            btn.textContent = '❌ Lỗi';
+        }
+        setTimeout(() => { btn.textContent = '🤖 Auto'; btn.disabled = false; }, 3500);
+    }
+
     function onServerChange(serverId) {
         saveSelect('server', serverId);
         const sel = document.getElementById('videoFolder');
@@ -130,6 +220,7 @@
         });
         const sv = localStorage.getItem('upload_folder');
         if(sv) sel.value = sv;
+        updateDiskBar(serverId);
     }
 
     // Tabs
@@ -297,6 +388,8 @@
         });
         const tab=localStorage.getItem('upload_active_tab');
         if(tab){ const btn=document.querySelector('[data-tab="'+tab+'"]'); if(btn) btn.click(); }
+        // Load disk stats in background
+        loadDiskStats();
     });
     function saveSelect(key,val){ localStorage.setItem('upload_'+key,val); }
 </script>

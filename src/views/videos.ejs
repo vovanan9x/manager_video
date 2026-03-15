@@ -188,8 +188,17 @@
     async function copyLink(id){
         const res=await fetch('/api/videos/'+id+'/link');
         const data=await res.json();
-        if(data.video&&data.video.link){ navigator.clipboard.writeText(data.video.link).then(()=>{/* toast */}); }
-        else alert('Video chưa có link');
+        if(data.video && data.video.link){
+            navigator.clipboard.writeText(data.video.link).then(()=>{
+                // Show brief toast-style feedback
+                const btn=document.querySelector(`button[onclick="copyLink(${id})"]`);
+                if(btn){ const orig=btn.textContent; btn.textContent='✅'; setTimeout(()=>btn.textContent=orig,1500); }
+            });
+        } else if(data.video && data.video.remote_path && !data.video.link){
+            alert('❌ Server chưa có Base URL\n\nVideo đã upload xong nhưng server lưu trữ chưa được cấu hình Base URL (ví dụ: https://cdn.domain.com).\n\nVào Settings → Servers → chỉnh sửa server → điền Base URL.');
+        } else {
+            alert('Video chưa có link (upload có thể chưa hoàn tất)');
+        }
     }
     async function watchVideo(id){
         const res=await fetch('/api/videos/'+id+'/link');
