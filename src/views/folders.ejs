@@ -496,6 +496,33 @@
                             </div>
 
 
+                            <!-- ===== Modal: Di chuyển thư mục ===== -->
+                            <div class="modal-overlay" id="moveModal">
+                                <div class="modal">
+                                    <div class="modal-header">
+                                        <h3>📦 Di chuyển thư mục</h3>
+                                        <button class="modal-close" onclick="closeModal('moveModal')">✕</button>
+                                    </div>
+                                    <form method="POST" id="moveForm">
+                                        <div class="modal-body">
+                                            <div class="modal-breadcrumb" id="moveBreadcrumb"></div>
+                                            <div class="form-group" style="margin-top:.75rem">
+                                                <label class="form-label">Thư mục cha mới *</label>
+                                                <select name="new_parent_id" id="moveParentSelect" class="form-control">
+                                                    <option value="">📂 Root (không có cha)</option>
+                                                </select>
+                                            </div>
+                                            <p class="hint-text">⚠️ Toàn bộ thư mục con sẽ được cập nhật path theo.</p>
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-outline" onclick="closeModal('moveModal')">Hủy</button>
+                                            <button type="submit" class="btn btn-primary">📦 Di chuyển</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+
+
                             <div id="__foldersData" data-json="<%= foldersJson.replace(/\" /g, '&quot;' ) %>"
                                 style="display:none"></div>
 
@@ -506,7 +533,7 @@
                                     document.getElementById(id).classList.remove('is-open');
                                 }
 
-                                ['createModal', 'renameModal'].forEach(function (id) {
+                                ['createModal', 'renameModal', 'moveModal'].forEach(function (id) {
                                     document.getElementById(id).addEventListener('click', function (e) {
                                         if (e.target === this) closeModal(id);
                                     });
@@ -516,6 +543,7 @@
                                     if (e.key === 'Escape') {
                                         closeModal('createModal');
                                         closeModal('renameModal');
+                                        closeModal('moveModal');
                                     }
                                 });
 
@@ -576,6 +604,39 @@
                                         var inp = document.getElementById('renameInput');
                                         inp.focus(); inp.select();
                                     }, 80);
+                                }
+
+                                function openMoveModal(id, name, path, serverId) {
+                                    document.getElementById('moveForm').action = '/folders/move/' + id;
+                                    document.getElementById('moveBreadcrumb').textContent = '> ' + path;
+
+                                    // Collect all descendant IDs to exclude
+                                    function collectDescendants(fid) {
+                                        var result = new Set();
+                                        result.add(fid);
+                                        folderData.forEach(function (f) {
+                                            if (f.parent_id === fid) {
+                                                collectDescendants(f.id).forEach(function (d) { result.add(d); });
+                                            }
+                                        });
+                                        return result;
+                                    }
+                                    var excluded = collectDescendants(id);
+
+                                    var sel = document.getElementById('moveParentSelect');
+                                    sel.innerHTML = '<option value="">📂 Root (không có cha)</option>';
+                                    folderData
+                                        .filter(function (f) { return f.server_id === serverId && !excluded.has(f.id); })
+                                        .sort(function (a, b) { return a.path.localeCompare(b.path); })
+                                        .forEach(function (f) {
+                                            var opt = document.createElement('option');
+                                            opt.value = f.id;
+                                            opt.textContent = '📁 ' + f.path;
+                                            sel.appendChild(opt);
+                                        });
+
+                                    document.getElementById('moveModal').classList.add('is-open');
+                                    setTimeout(function () { sel.focus(); }, 80);
                                 }
 
                                 var STORAGE_KEY = 'folderTreeOpen';

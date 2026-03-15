@@ -35,6 +35,8 @@ function renderTree(nodes, serverId, isAdmin) {
         html += `<button class="action-btn success" onclick="openCreateModal(${node.id},'${jsPath}',${sid})" title="Tạo thư mục con">➕ <span>Tạo con</span></button>`;
         // ✏️ Đổi tên — mọi user
         html += `<button class="action-btn" onclick="openRename(${node.id},'${jsName}','${jsPath}')" title="Đổi tên">✏️ <span>Đổi tên</span></button>`;
+        // 📦 Di chuyển — mọi user
+        html += `<button class="action-btn" onclick="openMoveModal(${node.id},'${jsName}','${jsPath}',${sid})" title="Di chuyển">📦 <span>Di chuyển</span></button>`;
         // 🗑️ Xóa — chỉ admin
         if (isAdmin) {
             html += `<button type="button" class="action-btn danger folder-delete-btn" data-id="${node.id}" data-name="${esc(node.name)}" title="Xóa">🗑️ <span>Xóa</span></button>`;
@@ -71,6 +73,8 @@ const ERROR_MESSAGES = {
     notfound: '⚠️ Không tìm thấy thư mục.',
     notempty: '⚠️ Thư mục còn video hoặc thư mục con, không thể xóa.',
     permission: '⚠️ Bạn không có quyền thực hiện thao tác này.',
+    circularMove: '⚠️ Không thể di chuyển thư mục vào chính nó hoặc thư mục con của nó.',
+    sameParent: '⚠️ Thư mục đã ở vị trí này rồi.',
 };
 
 // GET /folders
@@ -162,6 +166,61 @@ router.post('/delete/:id', requireAuth, (req, res) => {
 
     db.prepare('DELETE FROM folders WHERE id = ?').run(req.params.id);
     res.redirect('/folders?success=deleted');
+});
+
+// POST /folders/move/:id
+router.post('/move/:id', requireAuth, (req, res) => {
+    const folderId = parseInt(req.params.id, 10);
+    const folder = db.prepare('SELECT * FROM folders WHERE id = ?').get(folderId);
+    if (!folder) return res.redirect('/folders?error=notfound');
+
+    // new_parent_id: empty string → move to root, number → move under that folder
+    const rawParent = req.body.new_parent_id;
+    const newParentId = (rawParent === '' || rawParent === undefined) ? null : parseInt(rawParent, 10);
+
+    // Same parent — no-op
+    const currentParent = folder.parent_id === null ? null : folder.parent_id;
+    if (newParentId === currentParent) return res.redirect('/folders?error=sameParent');
+
+    // Prevent moving into itself or its own descendants
+    if (newParentId !== null) {
+        if (newParentId === folderId) return res.redirect('/folders?error=circularMove');
+        // Walk up the ancestor chain of newParentId to see if folderId appears
+        let cursor = db.prepare('SELECT * FROM folders WHERE id = ?').get(newParentId);
+        while (cursor) {
+            if (cursor.parent_id === folderId) return res.redirect('/folders?error=circularMove');
+            cursor = cursor.parent_id ? db.prepare('SELECT * FROM folders WHERE id = ?').get(cursor.parent_id) : null;
+        }
+    }
+
+    // Compute new path
+    let newBasePath = '';
+    if (newParentId !== null) {
+        const newParent = db.prepare('SELECT * FROM folders WHERE id = ?').get(newParentId);
+        if (!newParent) return res.redirect('/folders?error=notfound');
+        newBasePath = newParent.path;
+    }
+    const newPath = newBasePath ? `${newBasePath}/${folder.name}` : folder.name;
+
+    // Duplicate check
+    const existing = db.prepare('SELECT id FROM folders WHERE path = ? AND server_id = ? AND id != ?')
+        .get(newPath, folder.server_id, folderId);
+    if (existing) return res.redirect('/folders?error=duplicate');
+
+    const oldPath = folder.path;
+
+    // Update this folder
+    db.prepare('UPDATE folders SET parent_id = ?, path = ? WHERE id = ?')
+        .run(newParentId, newPath, folderId);
+
+    // Update all descendants
+    const children = db.prepare('SELECT * FROM folders WHERE path LIKE ?').all(oldPath + '/%');
+    children.forEach(child => {
+        const newChildPath = newPath + child.path.substring(oldPath.length);
+        db.prepare('UPDATE folders SET path = ? WHERE id = ?').run(newChildPath, child.id);
+    });
+
+    res.redirect('/folders?success=moved');
 });
 
 module.exports = router;
