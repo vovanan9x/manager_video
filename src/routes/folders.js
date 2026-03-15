@@ -30,17 +30,15 @@ function renderTree(nodes, serverId, isAdmin) {
         html += `<span class="folder-name">${safeName}</span>`;
         html += `<span class="folder-path-chip" title="${safePath}">${safePath}</span>`;
         html += `<div class="folder-actions">`;
+        // ➕ Tạo thư mục con — mọi user
+        html += `<button class="action-btn success" onclick="openCreateModal(${node.id},'${jsPath}',${sid})" title="Tạo thư mục con">➕ <span>Tạo con</span></button>`;
+        // ✏️ Đổi tên — mọi user
+        html += `<button class="action-btn" onclick="openRename(${node.id},'${jsName}','${jsPath}')" title="Đổi tên">✏️ <span>Đổi tên</span></button>`;
+        // 🗑️ Xóa — chỉ admin
         if (isAdmin) {
-            // ➕ Tạo thư mục con
-            html += `<button class="action-btn success" onclick="openCreateModal(${node.id},'${jsPath}',${sid})" title="Tạo thư mục con">➕ <span>Tạo con</span></button>`;
-            // ✏️ Đổi tên
-            html += `<button class="action-btn" onclick="openRename(${node.id},'${jsName}','${jsPath}')" title="Đổi tên">✏️ <span>Đổi tên</span></button>`;
-            // 🗑️ Xóa
-            html += `<form method="POST" action="/folders/delete/${node.id}" style="display:inline" `
-                + `onsubmit="return confirm('Xóa thư mục \\'${jsName}\\'? Không thể hoàn tác.')">`;
-            html += `<button type="submit" class="action-btn danger" title="Xóa">🗑️ <span>Xóa</span></button>`;
-            html += `</form>`;
+            html += `<button type="button" class="action-btn danger folder-delete-btn" data-id="${node.id}" data-name="${esc(node.name)}" title="Xóa">🗑️ <span>Xóa</span></button>`;
         }
+
         html += `</div></div>`;
         if (hasKids) {
             html += `<ul class="folder-tree children-list collapsed" data-parent-id="${node.id}">${renderTree(node.children, sid, isAdmin)}</ul>`;

@@ -14,6 +14,7 @@ router.get('/', requireAuth, (req, res) => {
     const user = req.session.user;
     const servers = db.prepare('SELECT id, name FROM servers ORDER BY name').all();
     const folders = db.prepare('SELECT id, name, path FROM folders ORDER BY path').all();
+    const users   = db.prepare('SELECT id, username FROM users ORDER BY username').all();
 
     let query = `SELECT v.*, u.username as uploader_name, s.name as server_name, f.name as folder_name
     FROM videos v
@@ -22,11 +23,6 @@ router.get('/', requireAuth, (req, res) => {
     LEFT JOIN folders f ON v.folder_id = f.id`;
     const conditions = [];
     const params = [];
-
-    if (user.role !== 'administrator') {
-        conditions.push('v.uploaded_by = ?');
-        params.push(user.id);
-    }
 
     if (req.query.server_id) {
         conditions.push('v.server_id = ?');
@@ -40,6 +36,10 @@ router.get('/', requireAuth, (req, res) => {
         conditions.push('v.status = ?');
         params.push(req.query.status);
     }
+    if (req.query.user_id) {
+        conditions.push('v.uploaded_by = ?');
+        params.push(req.query.user_id);
+    }
 
     if (conditions.length) query += ' WHERE ' + conditions.join(' AND ');
     query += ' ORDER BY v.created_at DESC';
@@ -47,10 +47,11 @@ router.get('/', requireAuth, (req, res) => {
     const videos = db.prepare(query).all(...params);
 
     res.render('videos', {
-        user, activePage: 'videos', videos, servers, folders,
+        user, activePage: 'videos', videos, servers, folders, users,
         filters: req.query,
     });
 });
+
 
 // GET /videos/upload
 router.get('/upload', requireAuth, (req, res) => {
@@ -78,6 +79,10 @@ router.post('/upload/local', requireAuth, upload.single('video'), async (req, re
 
     const server = db.prepare('SELECT * FROM servers WHERE id = ?').get(server_id);
     if (!server) return res.status(400).json({ error: 'Server không tồn tại' });
+    if (server.type === 'local') {
+        fs.unlinkSync(req.file.path);
+        return res.status(400).json({ error: 'Không thể upload lên server local. Vui lòng chọn server SFTP hoặc HTTP.' });
+    }
 
     const folder = folder_id ? db.prepare('SELECT * FROM folders WHERE id = ?').get(folder_id) : null;
     const filename = req.file.filename;

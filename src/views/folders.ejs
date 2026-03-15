@@ -640,6 +640,32 @@
                                     var p = new URLSearchParams(location.search);
                                     if (p.has('error') || p.has('success')) history.replaceState(null, '', location.pathname);
                                 })();
+
+                                // Double-click confirm for folder delete
+                                document.addEventListener('click', function (e) {
+                                    var btn = e.target.closest('.folder-delete-btn');
+                                    if (!btn) return;
+                                    if (btn.dataset.confirm !== '1') {
+                                        btn.dataset.confirm = '1';
+                                        var orig = btn.innerHTML;
+                                        btn.innerHTML = '✓ <span>Xác nhận?</span>';
+                                        btn.style.color = '#f87171';
+                                        var t = setTimeout(function () {
+                                            btn.dataset.confirm = '';
+                                            btn.innerHTML = orig;
+                                            btn.style.color = '';
+                                        }, 3000);
+                                        btn._resetTimer = t;
+                                        return;
+                                    }
+                                    // Confirmed — submit delete
+                                    var id = btn.dataset.id;
+                                    var form = document.createElement('form');
+                                    form.method = 'POST';
+                                    form.action = '/folders/delete/' + id;
+                                    document.body.appendChild(form);
+                                    form.submit();
+                                });
                             </script>
 
                             <%- include('footer') %>

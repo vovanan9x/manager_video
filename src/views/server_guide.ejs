@@ -323,7 +323,6 @@
             <a href="#fields">📋 Các trường cấu hình</a>
 
             <div class="section-title">Loại Server</div>
-            <a href="#local">💾 Local Storage</a>
             <a href="#sftp-password">🔐 SFTP (Password)</a>
             <a href="#sftp-key">🔑 SFTP (SSH Key)</a>
 
@@ -415,25 +414,25 @@
                         <td class="field-name">type</td>
                         <td><span class="badge-req">✓ Bắt buộc</span></td>
                         <td><span class="type-tag">select</span></td>
-                        <td><code>local</code> · <code>sftp</code> · <code>http</code> — loại kết nối</td>
+                        <td><code>sftp</code> · <code>http</code> — loại kết nối</td>
                     </tr>
                     <tr>
                         <td class="field-name">host</td>
                         <td><span class="badge-opt">SFTP/HTTP</span></td>
                         <td><span class="type-tag">text</span></td>
-                        <td>Địa chỉ IP hoặc domain của server. Ví dụ: <code>u123456.your-storagebox.de</code></td>
+                        <td>Địa chỉ IP hoặc domain của server. Ví dụ: <code>65.21.100.200</code></td>
                     </tr>
                     <tr>
                         <td class="field-name">port</td>
                         <td><span class="badge-opt">Tuỳ chọn</span></td>
                         <td><span class="type-tag">number</span></td>
-                        <td>Port SFTP. Mặc định <code>22</code>. Hetzner Storage Box dùng <code>23</code></td>
+                        <td>Port SFTP. Mặc định <code>22</code>.</td>
                     </tr>
                     <tr>
                         <td class="field-name">username</td>
                         <td><span class="badge-opt">SFTP</span></td>
                         <td><span class="type-tag">text</span></td>
-                        <td>Tên đăng nhập SFTP. Với Hetzner Storage Box thường là <code>u123456</code></td>
+                        <td>Tên đăng nhập SFTP. Ví dụ: <code>root</code> hoặc <code>deploy</code></td>
                     </tr>
                     <tr>
                         <td class="field-name">password</td>
@@ -445,7 +444,7 @@
                         <td class="field-name">root_path</td>
                         <td><span class="badge-req">✓ Bắt buộc</span></td>
                         <td><span class="type-tag">text</span></td>
-                        <td>Đường dẫn gốc để lưu video. Local: <code>D:\videos</code> · SFTP: <code>/home/videos</code>
+                        <td>Đường dẫn gốc để lưu video trên server. Ví dụ: SFTP: <code>/home/videos</code>
                         </td>
                     </tr>
                     <tr>
@@ -466,71 +465,6 @@
                 </table>
             </div>
 
-            <!-- LOCAL -->
-            <div class="guide-section" id="local">
-                <h2>💾 Local Storage</h2>
-                <p>Lưu video trực tiếp trên ổ đĩa của máy chủ chạy ứng dụng. Phù hợp cho môi trường dev hoặc khi server
-                    và storage là cùng 1 máy.</p>
-
-                <div class="alert-info">
-                    💡 <strong>Local storage</strong> không cần host/port/username/password. Chỉ cần đường dẫn thư mục
-                    hợp lệ trên hệ điều hành.
-                </div>
-
-                <div class="step-card">
-                    <div class="step-header">
-                        <div class="step-num">1</div>
-                        <span class="step-title">Cấu hình cần thiết</span>
-                    </div>
-                    <div class="step-body">
-                        <table class="field-table">
-                            <tr>
-                                <th>Trường</th>
-                                <th>Giá trị ví dụ</th>
-                                <th>Ghi chú</th>
-                            </tr>
-                            <tr>
-                                <td class="field-name">type</td>
-                                <td><code>local</code></td>
-                                <td>Chọn từ dropdown</td>
-                            </tr>
-                            <tr>
-                                <td class="field-name">root_path</td>
-                                <td><code>D:\manager_video\uploads</code> (Windows)<br><code>/var/videos</code> (Linux)
-                                </td>
-                                <td>Thư mục phải tồn tại hoặc sẽ được tạo tự động khi test</td>
-                            </tr>
-                            <tr>
-                                <td class="field-name">base_url</td>
-                                <td><code>http://localhost:3000/stream</code></td>
-                                <td>URL để client truy cập video. Để trống nếu chưa cần link công khai</td>
-                            </tr>
-                        </table>
-                    </div>
-                </div>
-
-                <div class="step-card">
-                    <div class="step-header">
-                        <div class="step-num">2</div>
-                        <span class="step-title">Phân quyền thư mục</span>
-                    </div>
-                    <div class="step-body">
-                        <p>Đảm bảo ứng dụng có quyền ghi vào <code>root_path</code>:</p>
-                        <div class="code-block">
-                            <div class="code-block-header"><span>Linux/macOS</span><button class="copy-btn"
-                                    onclick="copyCode(this)">Copy</button></div>
-                            <pre>sudo chown -R $(whoami) /var/videos
-chmod -R 755 /var/videos</pre>
-                        </div>
-                        <div class="code-block">
-                            <div class="code-block-header"><span>Windows (PowerShell)</span><button class="copy-btn"
-                                    onclick="copyCode(this)">Copy</button></div>
-                            <pre># Tạo thư mục nếu chưa có
-New-Item -ItemType Directory -Force -Path "D:\manager_video\uploads"</pre>
-                        </div>
-                    </div>
-                </div>
-            </div>
 
             <!-- SFTP PASSWORD -->
             <div class="guide-section" id="sftp-password">
@@ -915,64 +849,6 @@ sudo certbot --nginx -d cdn.mysite.com
                             <div class="code-block-header"><span>Áp dụng</span><button class="copy-btn"
                                     onclick="copyCode(this)">Copy</button></div>
                             <pre>sudo nginx -t && sudo systemctl reload nginx</pre>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- STEP 5: Hetzner Storage Box -->
-                <div class="step-card">
-                    <div class="step-header">
-                        <div class="step-num">5</div>
-                        <span class="step-title">Serve video từ Hetzner Storage Box qua Nginx trên VPS</span>
-                    </div>
-                    <div class="step-body">
-                        <p>Nếu dùng <strong>Hetzner Storage Box</strong> để lưu file và một <strong>VPS riêng</strong>
-                            để serve HTTP, cần mount Storage Box vào VPS qua SSHFS, sau đó Nginx serve thư mục đã mount:
-                        </p>
-                        <div class="code-block">
-                            <div class="code-block-header"><span>Bước 1 — Cài SSHFS trên VPS</span><button
-                                    class="copy-btn" onclick="copyCode(this)">Copy</button></div>
-                            <pre>sudo apt install -y sshfs
-mkdir -p /mnt/storagebox</pre>
-                        </div>
-                        <div class="code-block">
-                            <div class="code-block-header"><span>Bước 2 — Mount Storage Box</span><button
-                                    class="copy-btn" onclick="copyCode(this)">Copy</button></div>
-                            <pre># Mount thủ công (test)
-sshfs -p 23 u123456@u123456.your-storagebox.de:/ /mnt/storagebox \
-  -o allow_other,reconnect,ServerAliveInterval=15,ServerAliveCountMax=3</pre>
-                        </div>
-                        <div class="code-block">
-                            <div class="code-block-header"><span>Bước 3 — Tự động mount khi boot
-                                    (/etc/fstab)</span><button class="copy-btn" onclick="copyCode(this)">Copy</button>
-                            </div>
-                            <pre># Thêm vào cuối /etc/fstab:
-u123456@u123456.your-storagebox.de:/ /mnt/storagebox fuse.sshfs \
-  port=23,allow_other,reconnect,IdentityFile=/root/.ssh/storagebox_key,\
-  ServerAliveInterval=15,ServerAliveCountMax=3,_netdev 0 0</pre>
-                        </div>
-                        <div class="code-block">
-                            <div class="code-block-header"><span>Bước 4 — Cấu hình Nginx serve từ mount
-                                    point</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
-                            <pre>server {
-    listen 80;
-    server_name cdn.mysite.com;
-
-    # Trỏ root vào thư mục đã mount
-    root /mnt/storagebox/videos;
-
-    location / {
-        add_header Access-Control-Allow-Origin "*";
-        add_header Accept-Ranges bytes;
-        add_header Cache-Control "public, max-age=86400";
-    }
-}</pre>
-                        </div>
-                        <div class="alert-info">
-                            📌 <strong>Trong Video Manager:</strong> cấu hình server SFTP với
-                            <code>host = u123456.your-storagebox.de</code>, <code>port = 23</code>,
-                            <code>root_path = /videos</code> và <code>base_url = https://cdn.mysite.com</code> (domain
-                            VPS có Nginx).
                         </div>
                     </div>
                 </div>

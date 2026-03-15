@@ -1,7 +1,38 @@
-</div>
-</main>
-</div>
+        </div><!-- end page-wrapper -->
+    </main>
+</div><!-- end app-layout -->
+
+<script>
+    // Sidebar collapse/expand
+    const sidebar = document.getElementById('sidebar');
+    const mainContent = document.getElementById('mainContent');
+    const toggle = document.getElementById('sidebarToggle');
+    const COLLAPSED_KEY = 'sidebar_collapsed';
+
+    function setSidebarState(collapsed) {
+        sidebar.classList.toggle('collapsed', collapsed);
+        mainContent.classList.toggle('sidebar-collapsed', collapsed);
+        localStorage.setItem(COLLAPSED_KEY, collapsed ? '1' : '0');
+    }
+
+    if (toggle) {
+        toggle.addEventListener('click', () => {
+            setSidebarState(!sidebar.classList.contains('collapsed'));
+        });
+    }
+
+    // Restore saved state
+    if (localStorage.getItem(COLLAPSED_KEY) === '1') setSidebarState(true);
+
+    // Auto-dismiss alerts after 4s
+    document.querySelectorAll('.alert').forEach(el => {
+        setTimeout(() => {
+            el.style.transition = 'opacity .4s';
+            el.style.opacity = '0';
+            setTimeout(() => el.remove(), 400);
+        }, 4000);
+    });
+</script>
 <script src="/js/app.js"></script>
 </body>
-
 </html>

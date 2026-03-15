@@ -1,0 +1,1065 @@
+<%- include('header', { pageTitle: 'Database Manager - VideoManager' }) %>
+
+    <style>
+        /* ═══════════════════════════════════════════════
+   DATABASE MANAGER – Premium Dark UI
+═══════════════════════════════════════════════ */
+        .db-layout {
+            display: grid;
+            grid-template-columns: 260px 1fr;
+            gap: 0;
+            height: calc(100vh - 80px);
+            overflow: hidden;
+        }
+
+        /* Sidebar */
+        .db-sidebar {
+            background: #0f1117;
+            border-right: 1px solid #1e2130;
+            overflow-y: auto;
+            padding: 16px 0;
+        }
+
+        .db-sidebar-header {
+            padding: 0 16px 12px;
+            border-bottom: 1px solid #1e2130;
+            margin-bottom: 8px;
+        }
+
+        .db-sidebar-title {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: #6b7280;
+            font-weight: 600;
+        }
+
+        .db-table-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 9px 16px;
+            cursor: pointer;
+            border-radius: 0;
+            text-decoration: none;
+            color: #9ca3af;
+            transition: all .15s ease;
+            border-left: 3px solid transparent;
+        }
+
+        .db-table-item:hover {
+            background: #161b27;
+            color: #e5e7eb;
+        }
+
+        .db-table-item.active {
+            background: #1e2a45;
+            color: #60a5fa;
+            border-left-color: #3b82f6;
+            font-weight: 600;
+        }
+
+        .db-table-name {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13.5px;
+        }
+
+        .db-table-icon {
+            font-size: 14px;
+        }
+
+        .db-row-count {
+            font-size: 11px;
+            background: #1e2130;
+            color: #6b7280;
+            padding: 2px 7px;
+            border-radius: 10px;
+            font-weight: 600;
+        }
+
+        .db-table-item.active .db-row-count {
+            background: #1e3a6e;
+            color: #60a5fa;
+        }
+
+        /* Main content */
+        .db-main {
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            background: #0d1117;
+        }
+
+        /* Empty state */
+        .db-empty {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            color: #4b5563;
+        }
+
+        .db-empty-icon {
+            font-size: 56px;
+            opacity: .4;
+        }
+
+        .db-empty-text {
+            font-size: 16px;
+        }
+
+        /* Top bar */
+        .db-topbar {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 20px;
+            background: #0f1117;
+            border-bottom: 1px solid #1e2130;
+            flex-shrink: 0;
+        }
+
+        .db-table-title {
+            font-size: 17px;
+            font-weight: 700;
+            color: #f3f4f6;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .db-table-stats {
+            font-size: 12px;
+            color: #6b7280;
+            background: #161b27;
+            padding: 3px 10px;
+            border-radius: 20px;
+        }
+
+        .db-topbar-actions {
+            display: flex;
+            gap: 8px;
+            margin-left: auto;
+            align-items: center;
+        }
+
+        /* Search */
+        .db-search {
+            position: relative;
+        }
+
+        .db-search input {
+            background: #161b27;
+            border: 1px solid #1e2130;
+            color: #e5e7eb;
+            padding: 7px 12px 7px 32px;
+            border-radius: 8px;
+            font-size: 13px;
+            width: 200px;
+            outline: none;
+            transition: border .2s;
+        }
+
+        .db-search input:focus {
+            border-color: #3b82f6;
+        }
+
+        .db-search-icon {
+            position: absolute;
+            left: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 13px;
+            color: #6b7280;
+            pointer-events: none;
+        }
+
+        /* Buttons */
+        .btn-db {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 7px 14px;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            font-size: 12.5px;
+            font-weight: 600;
+            transition: all .15s ease;
+            text-decoration: none;
+            white-space: nowrap;
+        }
+
+        .btn-db-primary {
+            background: #2563eb;
+            color: #fff;
+        }
+
+        .btn-db-primary:hover {
+            background: #1d4ed8;
+        }
+
+        .btn-db-success {
+            background: #059669;
+            color: #fff;
+        }
+
+        .btn-db-success:hover {
+            background: #047857;
+        }
+
+        .btn-db-warning {
+            background: #d97706;
+            color: #fff;
+        }
+
+        .btn-db-warning:hover {
+            background: #b45309;
+        }
+
+        .btn-db-danger {
+            background: #dc2626;
+            color: #fff;
+        }
+
+        .btn-db-danger:hover {
+            background: #b91c1c;
+        }
+
+        .btn-db-ghost {
+            background: #161b27;
+            color: #9ca3af;
+            border: 1px solid #1e2130;
+        }
+
+        .btn-db-ghost:hover {
+            background: #1e2130;
+            color: #e5e7eb;
+        }
+
+        .btn-db-sm {
+            padding: 4px 10px;
+            font-size: 11.5px;
+        }
+
+        /* Schema strip */
+        .db-schema {
+            display: flex;
+            gap: 6px;
+            padding: 10px 20px;
+            background: #0a0d14;
+            border-bottom: 1px solid #1a1f2e;
+            flex-wrap: wrap;
+            flex-shrink: 0;
+        }
+
+        .db-col-badge {
+            background: #111827;
+            border: 1px solid #1e2130;
+            border-radius: 6px;
+            padding: 3px 8px;
+            font-size: 11px;
+            color: #9ca3af;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .db-col-badge .col-type {
+            color: #60a5fa;
+            font-size: 10px;
+        }
+
+        .db-col-badge .pk-badge {
+            background: #92400e;
+            color: #fbbf24;
+            font-size: 9px;
+            padding: 1px 4px;
+            border-radius: 3px;
+        }
+
+        /* Table */
+        .db-table-wrap {
+            flex: 1;
+            overflow: auto;
+            padding: 0;
+        }
+
+        .db-data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        .db-data-table thead {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            background: #111827;
+        }
+
+        .db-data-table thead th {
+            padding: 10px 14px;
+            text-align: left;
+            color: #9ca3af;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: .8px;
+            font-weight: 600;
+            border-bottom: 1px solid #1e2130;
+            white-space: nowrap;
+        }
+
+        .db-data-table tbody tr {
+            border-bottom: 1px solid #111827;
+            transition: background .1s;
+        }
+
+        .db-data-table tbody tr:hover {
+            background: #141a24;
+        }
+
+        .db-data-table tbody td {
+            padding: 8px 14px;
+            color: #d1d5db;
+            max-width: 280px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            vertical-align: middle;
+        }
+
+        .db-data-table tbody td.td-rowid {
+            color: #4b5563;
+            font-size: 11px;
+            width: 50px;
+        }
+
+        .db-data-table tbody td.td-null {
+            color: #374151;
+            font-style: italic;
+            font-size: 12px;
+        }
+
+        .db-data-table tbody td.td-actions {
+            white-space: nowrap;
+            width: 100px;
+        }
+
+        .value-chip {
+            display: inline-block;
+            background: #1e2130;
+            border-radius: 4px;
+            padding: 1px 6px;
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            font-size: 12px;
+            max-width: 260px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            vertical-align: middle;
+        }
+
+        .value-num {
+            color: #34d399;
+        }
+
+        .value-text {
+            color: #e5e7eb;
+        }
+
+        .value-bool {
+            color: #a78bfa;
+        }
+
+        /* Pagination */
+        .db-pagination {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 20px;
+            background: #0f1117;
+            border-top: 1px solid #1e2130;
+            flex-shrink: 0;
+        }
+
+        .db-pagination-info {
+            font-size: 12px;
+            color: #6b7280;
+        }
+
+        .db-pagination-pages {
+            display: flex;
+            gap: 4px;
+        }
+
+        .db-pagination-pages a,
+        .db-pagination-pages span {
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            text-decoration: none;
+            color: #9ca3af;
+            background: #161b27;
+            border: 1px solid #1e2130;
+        }
+
+        .db-pagination-pages a:hover {
+            background: #1e2130;
+            color: #e5e7eb;
+        }
+
+        .db-pagination-pages span.current {
+            background: #2563eb;
+            color: #fff;
+            border-color: #2563eb;
+        }
+
+        /* Alerts */
+        .db-alert {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 20px;
+            font-size: 13px;
+            flex-shrink: 0;
+        }
+
+        .db-alert-success {
+            background: #064e3b;
+            color: #6ee7b7;
+        }
+
+        .db-alert-error {
+            background: #7f1d1d;
+            color: #fca5a5;
+        }
+
+        /* ── MODALS ── */
+        .modal-backdrop {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, .7);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-backdrop.open {
+            display: flex;
+        }
+
+        .modal-box {
+            background: #111827;
+            border: 1px solid #1e2130;
+            border-radius: 12px;
+            width: 560px;
+            max-width: 95vw;
+            max-height: 85vh;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 25px 60px rgba(0, 0, 0, .6);
+            animation: modalIn .2s ease;
+        }
+
+        .modal-box.modal-lg {
+            width: 720px;
+        }
+
+        @keyframes modalIn {
+            from {
+                opacity: 0;
+                transform: translateY(-20px) scale(.97);
+            }
+
+            to {
+                opacity: 1;
+                transform: none;
+            }
+        }
+
+        .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 20px;
+            border-bottom: 1px solid #1e2130;
+        }
+
+        .modal-title {
+            font-size: 15px;
+            font-weight: 700;
+            color: #f3f4f6;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: #6b7280;
+            font-size: 20px;
+            line-height: 1;
+            transition: color .15s;
+        }
+
+        .modal-close:hover {
+            color: #e5e7eb;
+        }
+
+        .modal-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .modal-footer {
+            padding: 14px 20px;
+            border-top: 1px solid #1e2130;
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+        }
+
+        /* Form elements in modal */
+        .db-form-group {
+            margin-bottom: 14px;
+        }
+
+        .db-form-label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            color: #9ca3af;
+            text-transform: uppercase;
+            letter-spacing: .6px;
+            margin-bottom: 5px;
+        }
+
+        .db-form-label .type-hint {
+            font-weight: 400;
+            text-transform: none;
+            color: #4b5563;
+            font-size: 11px;
+            margin-left: 4px;
+        }
+
+        .db-form-input,
+        .db-form-select,
+        .db-form-textarea {
+            width: 100%;
+            background: #0d1117;
+            border: 1px solid #1e2130;
+            color: #e5e7eb;
+            padding: 9px 12px;
+            border-radius: 8px;
+            font-size: 13px;
+            outline: none;
+            transition: border .2s;
+            font-family: inherit;
+            box-sizing: border-box;
+        }
+
+        .db-form-input:focus,
+        .db-form-select:focus,
+        .db-form-textarea:focus {
+            border-color: #3b82f6;
+        }
+
+        .db-form-textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .db-form-select option {
+            background: #111827;
+        }
+
+        .db-form-hint {
+            font-size: 11px;
+            color: #4b5563;
+            margin-top: 3px;
+        }
+
+        .db-form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .db-form-check {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: #9ca3af;
+            cursor: pointer;
+            margin-top: 8px;
+        }
+
+        .db-form-check input[type=checkbox] {
+            accent-color: #3b82f6;
+            cursor: pointer;
+        }
+
+        /* Danger zone */
+        .db-danger-zone {
+            margin-top: 12px;
+            border: 1px solid #7f1d1d;
+            border-radius: 10px;
+            padding: 14px;
+            background: rgba(127, 29, 29, .1);
+        }
+
+        .db-danger-zone-title {
+            font-size: 12px;
+            font-weight: 700;
+            color: #f87171;
+            text-transform: uppercase;
+            letter-spacing: .8px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+    </style>
+
+    <div class="db-layout">
+        <!-- ─── Sidebar: Table List ─── -->
+        <div class="db-sidebar">
+            <div class="db-sidebar-header">
+                <div class="db-sidebar-title">🗄️ Bảng trong Database</div>
+            </div>
+            <% tables.forEach(t=> { %>
+                <a href="/database/table/<%= encodeURIComponent(t.name) %>"
+                    class="db-table-item <%= selectedTable === t.name ? 'active' : '' %>">
+                    <span class="db-table-name">
+                        <span class="db-table-icon">📋</span>
+                        <%= t.name %>
+                    </span>
+                    <span class="db-row-count">
+                        <%= t.rowCount %>
+                    </span>
+                </a>
+                <% }) %>
+        </div>
+
+        <!-- ─── Main Panel ─── -->
+        <div class="db-main">
+            <% if (success) { %>
+                <div class="db-alert db-alert-success">✅ <%= success %>
+                </div>
+                <% } %>
+                    <% if (error) { %>
+                        <div class="db-alert db-alert-error">❌ <%= error %>
+                        </div>
+                        <% } %>
+
+                            <% if (!selectedTable) { %>
+                                <!-- Empty state -->
+                                <div class="db-empty">
+                                    <div class="db-empty-icon">🗄️</div>
+                                    <div class="db-empty-text">Chọn một bảng bên trái để xem dữ liệu</div>
+                                </div>
+                                <% } else { %>
+
+                                    <!-- ─── Top Bar ─── -->
+                                    <div class="db-topbar">
+                                        <div class="db-table-title">
+                                            📋 <%= selectedTable %>
+                                                <span class="db-table-stats">
+                                                    <%= total %> hàng
+                                                </span>
+                                        </div>
+                                        <div class="db-topbar-actions">
+                                            <!-- Search -->
+                                            <form method="GET"
+                                                action="/database/table/<%= encodeURIComponent(selectedTable) %>"
+                                                style="margin:0">
+                                                <div class="db-search">
+                                                    <span class="db-search-icon">🔍</span>
+                                                    <input type="text" name="search" placeholder="Tìm kiếm..."
+                                                        value="<%= search %>" id="searchInput">
+                                                </div>
+                                            </form>
+                                            <button class="btn-db btn-db-success" onclick="openAddModal()">
+                                                ➕ Thêm Hàng
+                                            </button>
+                                            <button class="btn-db btn-db-warning" onclick="openAddColumnModal()">
+                                                📐 Thêm Cột
+                                            </button>
+                                            <a href="/database/table/<%= encodeURIComponent(selectedTable) %>/export"
+                                                class="btn-db btn-db-ghost">
+                                                📥 JSON
+                                            </a>
+                                            <button class="btn-db btn-db-danger" onclick="openTruncateModal()">
+                                                🗑️ Xoá Bảng
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <!-- ─── Schema Strip ─── -->
+                                    <div class="db-schema">
+                                        <% columns.forEach(col=> { %>
+                                            <div class="db-col-badge">
+                                                <% if (col.pk) { %><span class="pk-badge">PK</span>
+                                                    <% } %>
+                                                        <span>
+                                                            <%= col.name %>
+                                                        </span>
+                                                        <span class="col-type">
+                                                            <%= col.type || 'ANY' %>
+                                                        </span>
+                                                        <% if (col.notnull) { %><span
+                                                                style="color:#f87171;font-size:10px;">NN</span>
+                                                            <% } %>
+                                            </div>
+                                            <% }) %>
+                                    </div>
+
+                                    <!-- ─── Data Table ─── -->
+                                    <div class="db-table-wrap">
+                                        <% if (rows.length===0) { %>
+                                            <div style="text-align:center;padding:40px;color:#4b5563;font-size:14px;">
+                                                Không có dữ liệu<% if (search) { %> cho "<%= search %>"<% } %>
+                                            </div>
+                                            <% } else { %>
+                                                <table class="db-data-table">
+                                                    <thead>
+                                                        <tr>
+                                                            <th>rowid</th>
+                                                            <% columns.forEach(col=> { %><th>
+                                                                    <%= col.name %>
+                                                                </th>
+                                                                <% }) %>
+                                                                    <th>Thao tác</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        <% rows.forEach(row=> { %>
+                                                            <tr>
+                                                                <td class="td-rowid">#<%= row.__rowid__ %>
+                                                                </td>
+                                                                <% columns.forEach(col=> {
+                                                                    const val = row[col.name];
+                                                                    const type = (col.type || '').toUpperCase();
+                                                                    %>
+                                                                    <td
+                                                                        title="<%= val !== null && val !== undefined ? String(val) : '' %>">
+                                                                        <% if (val===null || val===undefined) { %>
+                                                                            <span class="td-null">NULL</span>
+                                                                            <% } else if (type.includes('INT') ||
+                                                                                type.includes('REAL') ||
+                                                                                type.includes('NUM')) { %>
+                                                                                <span class="value-chip value-num">
+                                                                                    <%= val %>
+                                                                                </span>
+                                                                                <% } else { %>
+                                                                                    <span class="value-chip value-text">
+                                                                                        <%= String(val).length> 60 ?
+                                                                                            String(val).substring(0,60)+'…'
+                                                                                            : val %>
+                                                                                    </span>
+                                                                                    <% } %>
+                                                                    </td>
+                                                                    <% }) %>
+                                                                        <td class="td-actions">
+                                                                            <button
+                                                                                class="btn-db btn-db-ghost btn-db-sm"
+                                                                                onclick="openEditModal(<%= row.__rowid__ %>, <%- JSON.stringify(row) %>)">
+                                                                                ✏️
+                                                                            </button>
+                                                                            <form method="POST"
+                                                                                action="/database/table/<%= encodeURIComponent(selectedTable) %>/row/<%= row.__rowid__ %>"
+                                                                                style="display:inline"
+                                                                                onsubmit="return confirm('Xoá hàng #<%= row.__rowid__ %>?')">
+                                                                                <input type="hidden" name="_method"
+                                                                                    value="DELETE">
+                                                                                <button type="submit"
+                                                                                    class="btn-db btn-db-danger btn-db-sm">🗑️</button>
+                                                                            </form>
+                                                                        </td>
+                                                            </tr>
+                                                            <% }) %>
+                                                    </tbody>
+                                                </table>
+                                                <% } %>
+                                    </div>
+
+                                    <!-- ─── Pagination ─── -->
+                                    <div class="db-pagination">
+                                        <div class="db-pagination-info">
+                                            Hiển thị <%= ((page-1)*pageSize)+1 %>–<%= Math.min(page*pageSize, total) %>
+                                                    / <%= total %> hàng
+                                                        <% if (search) { %> · Lọc: "<%= search %>"<% } %>
+                                        </div>
+                                        <div class="db-pagination-pages">
+                                            <% const totalPages=Math.ceil(total / pageSize); %>
+                                                <% if (page> 1) { %>
+                                                    <a
+                                                        href="/database/table/<%= encodeURIComponent(selectedTable) %>?page=<%= page-1 %>&search=<%= encodeURIComponent(search) %>">‹
+                                                        Trước</a>
+                                                    <% } %>
+                                                        <% let startPage=Math.max(1, page - 2); let
+                                                            endPage=Math.min(totalPages, startPage + 4);
+                                                            startPage=Math.max(1, endPage - 4); for (let p=startPage; p
+                                                            <=endPage; p++) { %>
+                                                            <% if (p===page) { %>
+                                                                <span class="current">
+                                                                    <%= p %>
+                                                                </span>
+                                                                <% } else { %>
+                                                                    <a
+                                                                        href="/database/table/<%= encodeURIComponent(selectedTable) %>?page=<%= p %>&search=<%= encodeURIComponent(search) %>">
+                                                                        <%= p %>
+                                                                    </a>
+                                                                    <% } %>
+                                                                        <% } %>
+                                                                            <% if (page < totalPages) { %>
+                                                                                <a
+                                                                                    href="/database/table/<%= encodeURIComponent(selectedTable) %>?page=<%= page+1 %>&search=<%= encodeURIComponent(search) %>">Tiếp
+                                                                                    ›</a>
+                                                                                <% } %>
+                                        </div>
+                                    </div>
+
+                                    <% } /* end selectedTable */ %>
+        </div><!-- end db-main -->
+    </div><!-- end db-layout -->
+
+
+    <!-- ═══════════════════════════════════════════
+     MODAL: ADD ROW
+═══════════════════════════════════════════ -->
+    <% if (selectedTable) { %>
+        <div class="modal-backdrop" id="addModal">
+            <div class="modal-box">
+                <div class="modal-header">
+                    <div class="modal-title">➕ Thêm hàng vào "<%= selectedTable %>"</div>
+                    <button class="modal-close" onclick="closeModal('addModal')">✕</button>
+                </div>
+                <form method="POST" action="/database/table/<%= encodeURIComponent(selectedTable) %>/row">
+                    <div class="modal-body" id="addFormBody">
+                        <% columns.forEach(col=> {
+                            const isAutoInc = col.pk && col.type === 'INTEGER';
+                            if (isAutoInc) return;
+                            const isLong = col.type === 'TEXT';
+                            %>
+                            <div class="db-form-group">
+                                <label class="db-form-label">
+                                    <%= col.name %>
+                                        <span class="type-hint">
+                                            <%= col.type || 'ANY' %>
+                                                <% if (col.notnull) { %> · NOT NULL<% } %>
+                                        </span>
+                                </label>
+                                <% if (isLong) { %>
+                                    <textarea class="db-form-textarea" name="<%= col.name %>" <% if (col.notnull &&
+                                        col.dflt_value===null) {
+                                        %>required<% } %>
+                                  placeholder="<% if (col.dflt_value !== null) { %>Mặc định: <%= col.dflt_value %><% } else { %>NULL<% } %>"></textarea>
+                                    <% } else { %>
+                                        <input class="db-form-input" type="text" name="<%= col.name %>" <% if
+                                            (col.notnull && col.dflt_value===null) { %>required<% } %>
+                                            placeholder="<% if (col.dflt_value !==null) { %>Mặc định: <%= col.dflt_value
+                                                    %>
+                                                    <% } else { %>NULL<% } %>">
+                                                            <% } %>
+                            </div>
+                            <% }) %>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn-db btn-db-ghost" onclick="closeModal('addModal')">Huỷ</button>
+                        <button type="submit" class="btn-db btn-db-success">➕ Thêm</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════
+     MODAL: EDIT ROW
+═══════════════════════════════════════════ -->
+        <div class="modal-backdrop" id="editModal">
+            <div class="modal-box modal-lg">
+                <div class="modal-header">
+                    <div class="modal-title" id="editModalTitle">✏️ Sửa hàng</div>
+                    <button class="modal-close" onclick="closeModal('editModal')">✕</button>
+                </div>
+                <form method="POST" id="editForm" action="">
+                    <div class="modal-body" id="editFormBody"></div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn-db btn-db-ghost" onclick="closeModal('editModal')">Huỷ</button>
+                        <button type="submit" class="btn-db btn-db-primary">💾 Lưu</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════
+     MODAL: ADD COLUMN
+═══════════════════════════════════════════ -->
+        <div class="modal-backdrop" id="addColumnModal">
+            <div class="modal-box">
+                <div class="modal-header">
+                    <div class="modal-title">📐 Thêm cột vào "<%= selectedTable %>"</div>
+                    <button class="modal-close" onclick="closeModal('addColumnModal')">✕</button>
+                </div>
+                <form method="POST" action="/database/table/<%= encodeURIComponent(selectedTable) %>/add-column">
+                    <div class="modal-body">
+                        <div class="db-form-row">
+                            <div class="db-form-group">
+                                <label class="db-form-label">Tên cột</label>
+                                <input class="db-form-input" type="text" name="colName" required
+                                    placeholder="vd: new_column">
+                                <div class="db-form-hint">Chỉ chữ, số, gạch dưới. Không dấu cách.</div>
+                            </div>
+                            <div class="db-form-group">
+                                <label class="db-form-label">Kiểu dữ liệu</label>
+                                <select class="db-form-select" name="colType">
+                                    <option value="TEXT">TEXT</option>
+                                    <option value="INTEGER">INTEGER</option>
+                                    <option value="REAL">REAL</option>
+                                    <option value="BLOB">BLOB</option>
+                                    <option value="NUMERIC">NUMERIC</option>
+                                    <option value="BOOLEAN">BOOLEAN</option>
+                                    <option value="DATETIME">DATETIME</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="db-form-group">
+                            <label class="db-form-label">Giá trị mặc định <span class="type-hint">(để trống =
+                                    NULL)</span></label>
+                            <input class="db-form-input" type="text" name="colDefault" placeholder="NULL">
+                        </div>
+                        <label class="db-form-check">
+                            <input type="checkbox" name="colNotNull">
+                            NOT NULL (bắt buộc có giá trị mặc định)
+                        </label>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn-db btn-db-ghost"
+                            onclick="closeModal('addColumnModal')">Huỷ</button>
+                        <button type="submit" class="btn-db btn-db-warning">📐 Thêm Cột</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════
+     MODAL: TRUNCATE
+═══════════════════════════════════════════ -->
+        <div class="modal-backdrop" id="truncateModal">
+            <div class="modal-box">
+                <div class="modal-header">
+                    <div class="modal-title" style="color:#f87171">⚠️ Xoá toàn bộ dữ liệu</div>
+                    <button class="modal-close" onclick="closeModal('truncateModal')">✕</button>
+                </div>
+                <form method="POST" action="/database/table/<%= encodeURIComponent(selectedTable) %>/truncate">
+                    <div class="modal-body">
+                        <div class="db-danger-zone">
+                            <div class="db-danger-zone-title">⚠️ Khu vực nguy hiểm</div>
+                            <p style="font-size:13px;color:#fca5a5;margin-bottom:12px;">
+                                Thao tác này sẽ <strong>xoá toàn bộ dữ liệu</strong> trong bảng
+                                <code
+                                    style="background:#1e2130;padding:2px 6px;border-radius:4px;"><%= selectedTable %></code>.
+                                Hành động <strong>không thể hoàn tác</strong>.
+                            </p>
+                            <div class="db-form-group">
+                                <label class="db-form-label">Gõ tên bảng để xác nhận</label>
+                                <input class="db-form-input" type="text" name="confirm"
+                                    placeholder="<%= selectedTable %>" autocomplete="off" required>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn-db btn-db-ghost"
+                            onclick="closeModal('truncateModal')">Huỷ</button>
+                        <button type="submit" class="btn-db btn-db-danger">🗑️ Xoá toàn bộ</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Schema data for JS -->
+        <script>
+            const DB_COLUMNS = <%- JSON.stringify(columns) %>;
+            const DB_TABLE = <%- JSON.stringify(selectedTable) %>;
+        </script>
+        <% } else { %>
+            <script>const DB_COLUMNS = []; const DB_TABLE = '';</script>
+            <% } %>
+
+                <script>
+                    // ── Modal helpers ──
+                    function openModal(id) {
+                        document.getElementById(id).classList.add('open');
+                        document.body.style.overflow = 'hidden';
+                    }
+                    function closeModal(id) {
+                        document.getElementById(id).classList.remove('open');
+                        document.body.style.overflow = '';
+                    }
+                    // Close on backdrop click
+                    document.querySelectorAll('.modal-backdrop').forEach(b => {
+                        b.addEventListener('click', e => { if (e.target === b) closeModal(b.id); });
+                    });
+                    // Close on Escape
+                    document.addEventListener('keydown', e => {
+                        if (e.key === 'Escape') {
+                            document.querySelectorAll('.modal-backdrop.open').forEach(b => closeModal(b.id));
+                        }
+                    });
+
+                    function openAddModal() { openModal('addModal'); }
+                    function openAddColumnModal() { openModal('addColumnModal'); }
+                    function openTruncateModal() { openModal('truncateModal'); }
+
+                    // ── Edit Modal ──
+                    function openEditModal(rowid, rowData) {
+                        document.getElementById('editModalTitle').textContent = `✏️ Sửa hàng #${rowid} — ${DB_TABLE}`;
+                        document.getElementById('editForm').action = `/database/table/${encodeURIComponent(DB_TABLE)}/row/${rowid}`;
+
+                        let html = '';
+                        DB_COLUMNS.forEach(col => {
+                            if (col.pk) return; // skip PK
+                            const val = rowData[col.name];
+                            const isLong = col.type === 'TEXT';
+                            const displayVal = val !== null && val !== undefined ? String(val) : '';
+                            if (isLong) {
+                                html += `
+            <div class="db-form-group">
+                <label class="db-form-label">${col.name} <span class="type-hint">${col.type || 'ANY'}</span></label>
+                <textarea class="db-form-textarea" name="${col.name}">${escHtml(displayVal)}</textarea>
+            </div>`;
+                            } else {
+                                html += `
+            <div class="db-form-group">
+                <label class="db-form-label">${col.name} <span class="type-hint">${col.type || 'ANY'}</span></label>
+                <input class="db-form-input" type="text" name="${col.name}" value="${escHtml(displayVal)}">
+            </div>`;
+                            }
+                        });
+                        document.getElementById('editFormBody').innerHTML = html || '<p style="color:#6b7280;font-size:13px">Bảng này chỉ có khoá chính, không có cột nào khác để sửa.</p>';
+                        openModal('editModal');
+                    }
+
+                    function escHtml(s) {
+                        return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+                    }
+
+                    // Auto-submit search on Enter (already works via form), debounce optional
+                    const searchEl = document.getElementById('searchInput');
+                    if (searchEl) {
+                        let debounce;
+                        searchEl.addEventListener('input', () => {
+                            clearTimeout(debounce);
+                            debounce = setTimeout(() => searchEl.closest('form').submit(), 600);
+                        });
+                    }
+                </script>
+
+                <%- include('footer') %>

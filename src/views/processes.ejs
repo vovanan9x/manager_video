@@ -1,0 +1,288 @@
+<%- include('header', { pageTitle: 'Tiến trình - VideoManager' }) %>
+
+<style>
+    .proc-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 16px;
+        margin-bottom: 24px;
+    }
+    .stat-card {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 18px 20px;
+    }
+    .stat-label {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: var(--text-muted);
+        font-weight: 600;
+        margin-bottom: 8px;
+    }
+    .stat-value {
+        font-size: 24px;
+        font-weight: 700;
+        color: var(--text-primary);
+        line-height: 1;
+    }
+    .stat-sub {
+        font-size: 12px;
+        color: var(--text-muted);
+        margin-top: 4px;
+    }
+    .stat-bar {
+        height: 6px;
+        background: var(--bg-tertiary);
+        border-radius: 3px;
+        margin-top: 10px;
+        overflow: hidden;
+    }
+    .stat-bar-fill {
+        height: 100%;
+        border-radius: 3px;
+        transition: width 1s ease;
+    }
+    .bar-green { background: linear-gradient(90deg,#22c55e,#16a34a); }
+    .bar-blue  { background: linear-gradient(90deg,#3b82f6,#2563eb); }
+    .bar-amber { background: linear-gradient(90deg,#f59e0b,#d97706); }
+    .bar-red   { background: linear-gradient(90deg,#ef4444,#dc2626); }
+
+    .section-title {
+        font-size: 13px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .8px;
+        color: var(--text-muted);
+        margin: 24px 0 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .section-title::after {
+        content:'';flex:1;height:1px;background:var(--border-color);
+    }
+
+    .upload-table { width:100%;border-collapse:collapse;font-size:13px; }
+    .upload-table thead th {
+        padding:10px 14px;text-align:left;
+        color:var(--text-muted);font-size:11px;text-transform:uppercase;
+        letter-spacing:.7px;border-bottom:1px solid var(--border-color);
+        background:var(--bg-secondary);
+    }
+    .upload-table tbody tr { border-bottom:1px solid var(--border-color); transition:background .1s; }
+    .upload-table tbody tr:hover { background:var(--bg-tertiary); }
+    .upload-table tbody td { padding:10px 14px;color:var(--text-primary); }
+
+    .progress-mini { height:6px;background:var(--bg-tertiary);border-radius:3px;min-width:80px;overflow:hidden; }
+    .progress-mini-fill { height:100%;background:linear-gradient(90deg,#3b82f6,#8b5cf6);border-radius:3px;transition:width .5s; }
+
+    .badge-uploading { background:rgba(59,130,246,.15);color:#60a5fa;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600; }
+    .badge-pending   { background:rgba(245,158,11,.15);color:#fbbf24;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600; }
+
+    .btn-stop {
+        background:rgba(239,68,68,.15);color:#f87171;border:1px solid rgba(239,68,68,.3);
+        padding:4px 10px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;
+        transition:all .15s;
+    }
+    .btn-stop:hover { background:rgba(239,68,68,.3); }
+
+    .error-table { width:100%;border-collapse:collapse;font-size:12px; }
+    .error-table thead th {
+        padding:8px 12px;text-align:left;color:var(--text-muted);
+        font-size:11px;text-transform:uppercase;letter-spacing:.7px;
+        border-bottom:1px solid var(--border-color);background:var(--bg-secondary);
+    }
+    .error-table tbody tr { border-bottom:1px solid var(--border-color); }
+    .error-table tbody td { padding:8px 12px;color:var(--text-secondary); }
+    .error-msg { color:#f87171;font-family:monospace;max-width:400px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+
+    .empty-box { text-align:center;padding:32px;color:var(--text-muted);font-size:13px; }
+    .refresh-btn {
+        background:var(--bg-secondary);border:1px solid var(--border-color);
+        color:var(--text-secondary);padding:6px 14px;border-radius:8px;
+        font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;
+        display:inline-flex;align-items:center;gap:6px;
+    }
+    .refresh-btn:hover { background:var(--bg-tertiary);color:var(--text-primary); }
+    .live-dot { width:8px;height:8px;border-radius:50%;background:#22c55e;display:inline-block;animation:pulse-dot 2s infinite; }
+    @keyframes pulse-dot { 0%,100%{opacity:1}50%{opacity:.3} }
+</style>
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">⚙️ Tiến trình App</h1>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px">
+        <span class="live-dot"></span>
+        <span style="font-size:12px;color:var(--text-muted)">Tự cập nhật mỗi 5s</span>
+        <button class="refresh-btn" onclick="refreshStats()">🔄 Làm mới</button>
+    </div>
+</div>
+
+<!-- ── System Stats ── -->
+<div class="section-title">📊 Thông tin hệ thống</div>
+<div class="proc-grid">
+    <div class="stat-card">
+        <div class="stat-label">Uptime App</div>
+        <div class="stat-value" id="s-uptime"><%= uptime %></div>
+        <div class="stat-sub">Node.js <%= nodeVersion %> &middot; PID <%= pid %></div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Heap Used / Total</div>
+        <div class="stat-value" id="s-heap"><%= mem.heapUsed %> MB</div>
+        <div class="stat-sub" id="s-heap-total">/ <%= mem.heapTotal %> MB</div>
+        <div class="stat-bar"><div class="stat-bar-fill bar-blue" id="s-heap-bar" style="width:<%= mem.heapPct %>%"></div></div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">RSS Memory</div>
+        <div class="stat-value" id="s-rss"><%= mem.rss %> MB</div>
+        <div class="stat-sub">Resident Set Size</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">RAM H&#7879; th&#7889;ng</div>
+        <div class="stat-value" id="s-ram"><%= os.usedMem %> MB</div>
+        <div class="stat-sub" id="s-ram-total">/ <%= os.totalMem %> MB &middot; <%= os.cpus %> CPU</div>
+        <div class="stat-bar"><div class="stat-bar-fill bar-green" id="s-ram-bar" style="width:<%= os.usedPct %>%"></div></div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Platform</div>
+        <div class="stat-value" style="font-size:16px;padding-top:4px"><%= platform %></div>
+        <div class="stat-sub"><%= os.hostname %></div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Upload &#273;ang ch&#7841;y</div>
+        <div class="stat-value" id="s-active"><%= activeVideos.length %></div>
+        <div class="stat-sub" id="s-active-label"><%= activeVideos.length > 0 ? 'đang xử lý' : 'không có tiến trình nào' %></div>
+    </div>
+</div>
+
+<!-- ── Active Uploads ── -->
+<div class="section-title">⏫ Upload đang chạy</div>
+<div class="card" style="overflow:hidden">
+    <div id="upload-section">
+        <% if (activeVideos.length === 0) { %>
+            <div class="empty-box">✅ Không có upload nào đang chạy</div>
+        <% } else { %>
+            <table class="upload-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Tiêu đề</th>
+                        <th>Server</th>
+                        <th>Nguồn</th>
+                        <th>Tiến trình</th>
+                        <th>Trạng thái</th>
+                        <th>Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody id="upload-tbody">
+                    <% activeVideos.forEach(v => { %>
+                    <tr id="urow-<%= v.id %>">
+                        <td style="color:var(--text-muted)">#<%= v.id %></td>
+                        <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><%= v.title %></td>
+                        <td style="color:var(--text-muted)"><%= v.server_name || '—' %></td>
+                        <td><span style="font-size:11px;color:var(--text-muted)"><%= v.source_type %></span></td>
+                        <td>
+                            <div style="display:flex;align-items:center;gap:8px">
+                                <div class="progress-mini"><div class="progress-mini-fill" id="upb-<%= v.id %>" style="width:<%= v.upload_progress %>%"></div></div>
+                                <span style="font-size:11px;color:var(--text-muted);width:32px" id="uppct-<%= v.id %>"><%= v.upload_progress %>%</span>
+                            </div>
+                        </td>
+                        <td><span class="badge-<%= v.status %>"><%= v.status === 'uploading' ? '⏫ Uploading' : '⏳ Pending' %></span></td>
+                        <td>
+                            <button class="btn-stop stop-upload-btn" data-id="<%= v.id %>">⏹ Dừng</button>
+                        </td>
+                    </tr>
+                    <% }) %>
+                </tbody>
+            </table>
+        <% } %>
+    </div>
+</div>
+
+<!-- ── Recent Errors ── -->
+<div class="section-title">🚨 Lỗi gần đây</div>
+<div class="card" style="overflow:hidden;margin-bottom:32px">
+    <% if (recentErrors.length === 0) { %>
+        <div class="empty-box">✅ Không có lỗi nào được ghi nhận</div>
+    <% } else { %>
+        <table class="error-table">
+            <thead>
+                <tr><th>Thời gian</th><th>Loại</th><th>Nội dung</th></tr>
+            </thead>
+            <tbody>
+                <% recentErrors.forEach(e => { %>
+                <tr>
+                    <td style="white-space:nowrap;color:var(--text-muted)"><%= new Date(e.created_at).toLocaleString('vi') %></td>
+                    <td><span style="font-size:11px;color:#f59e0b"><%= e.type || '—' %></span></td>
+                    <td class="error-msg" title="<%= e.message %>"><%= e.message %></td>
+                </tr>
+                <% }) %>
+            </tbody>
+        </table>
+    <% } %>
+</div>
+
+<script>
+    function fmtMB(bytes) { return (bytes / 1024 / 1024).toFixed(1); }
+    function formatUptime(sec) {
+        sec = Math.floor(sec);
+        const h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60), s = sec%60;
+        if (h > 0) return `${h}h ${m}m`;
+        if (m > 0) return `${m}m ${s}s`;
+        return `${s}s`;
+    }
+
+    // Stop upload – double click confirm
+    document.addEventListener('click', function(e) {
+        const btn = e.target.closest('.stop-upload-btn');
+        if (!btn) return;
+        if (btn.dataset.confirm !== '1') {
+            btn.dataset.confirm = '1';
+            btn.textContent = '✓ Xác nhận?';
+            setTimeout(() => { btn.dataset.confirm=''; btn.textContent='⏹ Dừng'; }, 3000);
+            return;
+        }
+        const id = btn.dataset.id;
+        btn.disabled = true; btn.textContent = '⏳...';
+        fetch('/processes/stop/' + id, { method: 'POST' })
+            .then(r => r.json())
+            .then(() => {
+                const row = document.getElementById('urow-' + id);
+                if (row) row.style.opacity = '.4';
+                setTimeout(() => location.reload(), 800);
+            });
+    });
+
+    // Live stats refresh every 5s
+    async function refreshStats() {
+        try {
+            const data = await fetch('/processes/stats').then(r => r.json());
+            // Update memory
+            document.getElementById('s-heap').textContent = fmtMB(data.mem.heapUsed) + ' MB';
+            document.getElementById('s-heap-total').textContent = '/ ' + fmtMB(data.mem.heapTotal) + ' MB';
+            document.getElementById('s-heap-bar').style.width = Math.round(data.mem.heapUsed/data.mem.heapTotal*100) + '%';
+            document.getElementById('s-rss').textContent = fmtMB(data.mem.rss) + ' MB';
+            document.getElementById('s-ram').textContent = fmtMB(data.os.usedMem) + ' MB';
+            document.getElementById('s-ram-bar').style.width = Math.round(data.os.usedMem/data.os.totalMem*100) + '%';
+            // Uptime
+            document.getElementById('s-uptime').textContent = formatUptime(data.uptime);
+            // Active count
+            document.getElementById('s-active').textContent = data.activeVideos.length;
+            document.getElementById('s-active-label').textContent = data.activeVideos.length > 0 ? 'đang xử lý' : 'không có tiến trình nào';
+            // Update progress bars
+            data.activeVideos.forEach(v => {
+                const bar = document.getElementById('upb-' + v.id);
+                const pct = document.getElementById('uppct-' + v.id);
+                if (bar) bar.style.width = v.upload_progress + '%';
+                if (pct) pct.textContent = v.upload_progress + '%';
+            });
+        } catch(_) {}
+    }
+
+    setInterval(refreshStats, 5000);
+</script>
+
+<%- include('footer') %>

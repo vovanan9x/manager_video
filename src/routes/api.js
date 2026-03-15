@@ -56,7 +56,7 @@ router.get('/videos', apiAuth, (req, res) => {
 });
 
 // GET /api/videos/:id/link - get video link
-router.get('/videos/:id/link', apiAuth, (req, res) => {
+router.get('/videos/:id/link', requireSessionUser, (req, res) => {
     const video = db.prepare(`
     SELECT v.*, s.base_url, s.root_path, s.type as server_type
     FROM videos v LEFT JOIN servers s ON v.server_id = s.id
@@ -157,49 +157,83 @@ function extractDriveFileId(input) {
     return null;
 }
 
-// Build a direct download URL, handling large-file confirmation cookie
+// Build a direct download URL, handling large-file virus-scan confirmation
 async function getDriveDownloadStream(fileId) {
     const axios = require('axios');
-    const baseUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
 
-    // First request – small files respond directly, large files return an HTML page with a confirm token
-    const resp1 = await axios.get(baseUrl, {
-        responseType: 'stream',
-        maxRedirects: 5,
-        headers: { 'User-Agent': 'Mozilla/5.0' },
-        timeout: 30000,
-    });
+    // Modern endpoint (2024+) — handles large files better
+    const urls = [
+        `https://drive.usercontent.google.com/download?id=${fileId}&export=download&authuser=0&confirm=t`,
+        `https://drive.google.com/uc?export=download&id=${fileId}&confirm=t`,
+    ];
 
-    const contentType = resp1.headers['content-type'] || '';
-    if (!contentType.includes('text/html')) {
-        // Small file – already a direct stream
-        return { stream: resp1.data, size: parseInt(resp1.headers['content-length'] || '0', 10) };
+    for (const url of urls) {
+        try {
+            // Use a cookie jar approach: first request may set warning cookie
+            const resp1 = await axios.get(url, {
+                responseType: 'stream',
+                maxRedirects: 10,
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                    'Accept': '*/*',
+                },
+                timeout: 60000,
+                validateStatus: s => s < 500,
+            });
+
+            const contentType = resp1.headers['content-type'] || '';
+
+            // Got a real file stream
+            if (!contentType.includes('text/html')) {
+                const size = parseInt(resp1.headers['content-length'] || '0', 10);
+                return { stream: resp1.data, size };
+            }
+
+            // Got HTML — parse for confirm token or cookie
+            const chunks = [];
+            for await (const chunk of resp1.data) chunks.push(chunk);
+            const html = Buffer.concat(chunks).toString('utf8');
+
+            // Extract Set-Cookie warning cookie (e.g. download_warning_xxxxx)
+            const cookies = [].concat(resp1.headers['set-cookie'] || []);
+            const cookieStr = cookies.map(c => c.split(';')[0]).join('; ');
+
+            // Try to find confirm token in form or in download_warning cookie
+            const confirmMatch = html.match(/name="confirm"\s+value="([^"]+)"/i)
+                || html.match(/"confirm"\s*:\s*"([^"]+)"/i);
+            const uuidMatch = html.match(/name="uuid"\s+value="([^"]+)"/i);
+
+            // Build confirmed URL
+            let confirmedUrl = `https://drive.usercontent.google.com/download?id=${fileId}&export=download&authuser=0&confirm=t`;
+            if (confirmMatch) confirmedUrl += `&confirm=${confirmMatch[1]}`;
+            if (uuidMatch) confirmedUrl += `&uuid=${uuidMatch[1]}`;
+
+            const resp2 = await axios.get(confirmedUrl, {
+                responseType: 'stream',
+                maxRedirects: 10,
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                    'Accept': '*/*',
+                    ...(cookieStr ? { 'Cookie': cookieStr } : {}),
+                },
+                timeout: 60000,
+            });
+
+            const ct2 = resp2.headers['content-type'] || '';
+            if (!ct2.includes('text/html')) {
+                const size = parseInt(resp2.headers['content-length'] || '0', 10);
+                return { stream: resp2.data, size };
+            }
+
+            // Still HTML — this URL didn't work, try next
+            resp2.data.destroy();
+        } catch (e) {
+            // Try next URL
+            if (url === urls[urls.length - 1]) throw e;
+        }
     }
 
-    // Large file – need to collect HTML body and extract confirm token
-    const chunks = [];
-    for await (const chunk of resp1.data) chunks.push(chunk);
-    const html = Buffer.concat(chunks).toString('utf8');
-
-    // Google embeds a form with an "id" and "confirm" hidden field
-    const confirmMatch = html.match(/name="confirm"\s+value="([^"]+)"/);
-    const uuidMatch = html.match(/name="uuid"\s+value="([^"]+)"/);
-
-    if (!confirmMatch) {
-        throw new Error('Google Drive: cannot extract confirmation token. File may be private or require login.');
-    }
-
-    const confirm = confirmMatch[1];
-    const uuid = uuidMatch ? uuidMatch[1] : '';
-    const downloadUrl = `https://drive.google.com/uc?export=download&id=${fileId}&confirm=${confirm}` + (uuid ? `&uuid=${uuid}` : '');
-
-    const resp2 = await axios.get(downloadUrl, {
-        responseType: 'stream',
-        maxRedirects: 5,
-        headers: { 'User-Agent': 'Mozilla/5.0' },
-        timeout: 30000,
-    });
-    return { stream: resp2.data, size: parseInt(resp2.headers['content-length'] || '0', 10) };
+    throw new Error('Google Drive: Không thể tải file. Hãy đảm bảo file được chia sẻ công khai (Anyone with the link).');
 }
 
 /**
@@ -217,7 +251,22 @@ async function getDriveDownloadStream(fileId) {
  *
  * Auth: session cookie OR X-Api-Key header
  */
-router.post('/videos/drive-upload', apiAuth, async (req, res) => {
+// Auth cho drive-upload: cho phép mọi user đã đăng nhập (admin + uploader)
+function requireSessionUser(req, res, next) {
+    if (req.session && req.session.user) return next();
+    // Cũng cho phép API key (giữ tính tương thích)
+    const apiKey = req.headers['x-api-key'] || req.query.api_key;
+    if (apiKey) {
+        const setting = db.prepare('SELECT value FROM settings WHERE key = ?').get('api_key');
+        if (setting && setting.value === apiKey) {
+            req.apiUser = { role: 'administrator' };
+            return next();
+        }
+    }
+    res.status(401).json({ error: 'Unauthorized' });
+}
+
+router.post('/videos/drive-upload', requireSessionUser, async (req, res) => {
     const { drive_url, title, server_id, folder_id, description, filename: customName } = req.body;
 
     if (!drive_url) return res.status(400).json({ error: 'drive_url is required' });

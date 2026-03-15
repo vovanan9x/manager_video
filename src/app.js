@@ -30,6 +30,8 @@ app.use('/videos', require('./routes/videos'));
 app.use('/folders', require('./routes/folders'));
 app.use('/servers', require('./routes/servers'));
 app.use('/settings', require('./routes/settings'));
+app.use('/database', require('./routes/database'));
+app.use('/processes', require('./routes/processes'));
 app.use('/api', require('./routes/api'));
 // app.use('/stream', require('./routes/stream')); // Stream proxy disabled
 app.use('/errors', require('./routes/errors'));

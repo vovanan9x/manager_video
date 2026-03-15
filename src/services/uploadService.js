@@ -44,19 +44,25 @@ async function uploadToServer(videoId, localFilePath, server, remotePath) {
     activeUploads.set(videoId, { controller, type: server.type });
 
     try {
-        if (server.type === 'local') {
-            await uploadLocal(videoId, localFilePath, server, remotePath, controller);
-        } else if (server.type === 'sftp') {
+        if (server.type === 'sftp') {
             await uploadSftp(videoId, localFilePath, server, remotePath, controller);
         } else if (server.type === 'http') {
             await uploadHttp(videoId, localFilePath, server, remotePath, controller);
+        } else {
+            throw new Error(`Loại server '${server.type}' không được hỗ trợ để upload.`);
         }
 
         if (!controller.cancelled) {
             emitProgress(videoId, 100, 'done');
-            // Clean up local temp file
-            if (fs.existsSync(localFilePath) && localFilePath.includes('uploads')) {
-                try { fs.unlinkSync(localFilePath); } catch (_) { }
+            // Xóa file tạm trên app server sau khi upload lên storage thành công
+            if (localFilePath && fs.existsSync(localFilePath)) {
+                fs.unlink(localFilePath, (err) => {
+                    if (err) {
+                        console.warn(`[Cleanup] Không thể xóa file tạm: ${localFilePath}`, err.message);
+                    } else {
+                        console.log(`[Cleanup] Đã xóa file tạm: ${path.basename(localFilePath)}`);
+                    }
+                });
             }
         }
     } catch (err) {
@@ -79,39 +85,6 @@ async function uploadToServer(videoId, localFilePath, server, remotePath) {
     }
 }
 
-async function uploadLocal(videoId, localFilePath, server, remotePath, controller) {
-    const destPath = path.join(server.root_path, remotePath);
-    const destDir = path.dirname(destPath);
-    if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
-
-    const fileSize = fs.statSync(localFilePath).size;
-    let transferred = 0;
-    const CHUNK = 1024 * 1024; // 1MB
-
-    const readStream = fs.createReadStream(localFilePath, { highWaterMark: CHUNK });
-    const writeStream = fs.createWriteStream(destPath);
-
-    await new Promise((resolve, reject) => {
-        readStream.on('data', chunk => {
-            if (controller.cancelled) {
-                readStream.destroy();
-                writeStream.destroy();
-                try { if (fs.existsSync(destPath)) fs.unlinkSync(destPath); } catch (_) { }
-                return;
-            }
-            transferred += chunk.length;
-            const pct = Math.floor((transferred / fileSize) * 100);
-            emitProgress(videoId, pct, 'uploading');
-        });
-        readStream.on('error', reject);
-        writeStream.on('error', reject);
-        writeStream.on('finish', resolve);
-        readStream.pipe(writeStream);
-    });
-
-    // Update remote_path in DB
-    db.prepare('UPDATE videos SET remote_path = ?, file_size = ? WHERE id = ?').run(remotePath, fileSize, videoId);
-}
 
 async function uploadSftp(videoId, localFilePath, server, remotePath, controller) {
     const fileSize = fs.statSync(localFilePath).size;
@@ -145,19 +118,30 @@ async function uploadSftp(videoId, localFilePath, server, remotePath, controller
             await sftp.connect(buildConnOpts());
             try { await sftp.mkdir(remoteDir, true); } catch (_) { }
 
-            let transferred = 0;
-            const readStream = fs.createReadStream(localFilePath);
-            readStream.on('data', chunk => {
-                if (controller.cancelled) { readStream.destroy(); return; }
-                transferred += chunk.length;
-                const pct = Math.floor((transferred / fileSize) * 100);
-                emitProgress(videoId, pct, 'uploading');
-            });
+            if (controller.cancelled) { await sftp.end(); break; }
 
-            if (!controller.cancelled) {
-                await sftp.put(readStream, remoteFullPath);
-                db.prepare('UPDATE videos SET remote_path = ?, file_size = ? WHERE id = ?').run(remotePath, fileSize, videoId);
+            // Track progress via polling interval (fastPut uses file path, not stream)
+            let progressInterval = setInterval(async () => {
+                if (controller.cancelled) return;
+                try {
+                    const stat = await sftp.stat(remoteFullPath).catch(() => null);
+                    if (stat && fileSize > 0) {
+                        const pct = Math.min(99, Math.floor((stat.size / fileSize) * 100));
+                        emitProgress(videoId, pct, 'uploading');
+                    }
+                } catch (_) {}
+            }, 1500);
+
+            try {
+                await sftp.fastPut(localFilePath, remoteFullPath, {
+                    concurrency: 16,
+                    chunkSize: 1024 * 1024, // 1MB chunks
+                });
+            } finally {
+                clearInterval(progressInterval);
             }
+
+            db.prepare('UPDATE videos SET remote_path = ?, file_size = ? WHERE id = ?').run(remotePath, fileSize, videoId);
             await sftp.end();
             return; // success — exit retry loop
         } catch (err) {
@@ -250,25 +234,6 @@ async function fetchRemoteVideo(videoId, url, server, remotePath, controller) {
             await sftp.put(response.data, remoteFullPath);
             await sftp.end();
             db.prepare('UPDATE videos SET remote_path = ?, file_size = ? WHERE id = ?').run(remotePath, transferred, videoId);
-        } else if (server.type === 'local') {
-            const destPath = path.join(server.root_path, remotePath);
-            const destDir = path.dirname(destPath);
-            if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
-
-            const writeStream = fs.createWriteStream(destPath);
-            response.data.on('data', chunk => {
-                transferred += chunk.length;
-                const pct = totalSize ? Math.floor((transferred / totalSize) * 100) : 0;
-                emitProgress(videoId, pct, 'uploading');
-            });
-
-            await new Promise((resolve, reject) => {
-                response.data.pipe(writeStream);
-                writeStream.on('finish', resolve);
-                writeStream.on('error', reject);
-            });
-
-            db.prepare('UPDATE videos SET remote_path = ?, file_size = ? WHERE id = ?').run(remotePath, transferred, videoId);
         } else if (server.type === 'http') {
             const FormData = require('form-data');
             const form = new FormData();
@@ -319,6 +284,10 @@ function stopUpload(videoId) {
     return true;
 }
 
+function getActiveUploads() {
+    return Array.from(activeUploads.keys());
+}
+
 module.exports = {
     uploadToServer,
     fetchRemoteVideo,
@@ -327,4 +296,5 @@ module.exports = {
     removeSseClient,
     uploadEmitter,
     emitProgress,
+    getActiveUploads,
 };

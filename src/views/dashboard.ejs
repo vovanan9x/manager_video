@@ -1,127 +1,112 @@
-<% function formatBytes(bytes) { if (!bytes || bytes===0) return '0 B' ; const sizes=['B', 'KB' , 'MB' , 'GB' , 'TB' ];
-    const i=Math.floor(Math.log(bytes) / Math.log(1024)); return (bytes / Math.pow(1024, i)).toFixed(1) + ' ' +
-    sizes[i]; } function pct(used, total) { if (!total) return 0; return Math.round((used / total) * 100); } %>
-    <%- include('header') %>
+<% function formatBytes(bytes) { if (!bytes||bytes===0) return '0 B'; const s=['B','KB','MB','GB','TB']; const i=Math.floor(Math.log(bytes)/Math.log(1024)); return (bytes/Math.pow(1024,i)).toFixed(1)+' '+s[i]; } function pct(used,total){if(!total)return 0;return Math.round((used/total)*100);} %>
+<%- include('header', { pageTitle: 'Dashboard - VideoManager' }) %>
 
-        <div class="page-header">
-            <h1 class="page-title">📊 Dashboard</h1>
-            <p class="page-subtitle">Xin chào, <strong>
-                    <%= user.username %>
-                </strong>! Hôm nay là <%= new Date().toLocaleDateString('vi-VN', {weekday:'long', year:'numeric',
-                    month:'long', day:'numeric'}) %>
-            </p>
+<div class="page-header">
+    <div>
+        <h1 class="page-title">📊 Dashboard</h1>
+        <p class="page-subtitle">Xin chào, <strong><%= user.username %></strong>! <%= new Date().toLocaleDateString('vi-VN',{weekday:'long',year:'numeric',month:'long',day:'numeric'}) %></p>
+    </div>
+    <a href="/videos/upload" class="btn btn-primary">⬆️ Upload Video</a>
+</div>
+
+<!-- Stats -->
+<div class="stats-grid">
+    <div class="stat-card stat-blue">
+        <div class="stat-icon">🎥</div>
+        <div class="stat-info">
+            <div class="stat-value"><%= stats.myVideoCount %></div>
+            <div class="stat-label">Video của tôi</div>
         </div>
-
-        <div class="stats-grid">
-            <div class="stat-card stat-blue">
-                <div class="stat-icon">🎥</div>
-                <div class="stat-info">
-                    <div class="stat-value">
-                        <%= stats.myVideoCount %>
-                    </div>
-                    <div class="stat-label">Video của tôi</div>
-                </div>
-            </div>
-            <div class="stat-card stat-purple">
-                <div class="stat-icon">💾</div>
-                <div class="stat-info">
-                    <div class="stat-value">
-                        <%= formatBytes(stats.myUploadedSize) %>
-                    </div>
-                    <div class="stat-label">Dung lượng tôi upload</div>
-                </div>
-            </div>
-            <div class="stat-card stat-green">
-                <div class="stat-icon">🌐</div>
-                <div class="stat-info">
-                    <div class="stat-value">
-                        <%= stats.totalVideoCount %>
-                    </div>
-                    <div class="stat-label">Tổng video hệ thống</div>
-                </div>
-            </div>
-            <div class="stat-card stat-orange">
-                <div class="stat-icon">📦</div>
-                <div class="stat-info">
-                    <div class="stat-value">
-                        <%= formatBytes(stats.totalUploadedSize) %>
-                    </div>
-                    <div class="stat-label">Tổng dung lượng upload</div>
-                </div>
-            </div>
-            <div class="stat-card stat-teal">
-                <div class="stat-icon">🖥️</div>
-                <div class="stat-info">
-                    <div class="stat-value">
-                        <%= stats.totalServers %>
-                    </div>
-                    <div class="stat-label">Servers đang hoạt động</div>
-                </div>
-            </div>
-            <div class="stat-card stat-red">
-                <div class="stat-icon">👥</div>
-                <div class="stat-info">
-                    <div class="stat-value">
-                        <%= stats.totalUsers %>
-                    </div>
-                    <div class="stat-label">Tổng Users</div>
-                </div>
-            </div>
+    </div>
+    <div class="stat-card stat-purple">
+        <div class="stat-icon">💾</div>
+        <div class="stat-info">
+            <div class="stat-value"><%= formatBytes(stats.myUploadedSize) %></div>
+            <div class="stat-label">Tôi đã upload</div>
         </div>
+    </div>
+    <div class="stat-card stat-green">
+        <div class="stat-icon">🌐</div>
+        <div class="stat-info">
+            <div class="stat-value"><%= stats.totalVideoCount %></div>
+            <div class="stat-label">Tổng video hệ thống</div>
+        </div>
+    </div>
+    <div class="stat-card stat-orange">
+        <div class="stat-icon">📦</div>
+        <div class="stat-info">
+            <div class="stat-value"><%= formatBytes(stats.totalUploadedSize) %></div>
+            <div class="stat-label">Tổng dung lượng</div>
+        </div>
+    </div>
+    <div class="stat-card stat-teal">
+        <div class="stat-icon">🖥️</div>
+        <div class="stat-info">
+            <div class="stat-value"><%= stats.totalServers %></div>
+            <div class="stat-label">Servers hoạt động</div>
+        </div>
+    </div>
+    <div class="stat-card stat-red">
+        <div class="stat-icon">👥</div>
+        <div class="stat-info">
+            <div class="stat-value"><%= stats.totalUsers %></div>
+            <div class="stat-label">Tổng Users</div>
+        </div>
+    </div>
+</div>
 
-        <div class="content-grid">
-            <div class="card">
-                <div class="card-header">
-                    <h3 class="card-title">🖥️ Ổ cứng Server</h3>
-                </div>
-                <div class="card-body disk-info">
-                    <div class="disk-row">
-                        <span>Đã dùng</span>
-                        <span>
-                            <%= formatBytes(stats.diskInfo.used) %> / <%= formatBytes(stats.diskInfo.total) %>
-                        </span>
-                    </div>
-                    <div class="progress-bar-container">
-                        <div class="progress-bar"
-                            style="width: <%= pct(stats.diskInfo.used, stats.diskInfo.total) %>%; background: var(--gradient-blue)">
-                        </div>
-                    </div>
-                    <div class="disk-row">
-                        <span class="text-muted">Còn trống</span>
-                        <span class="text-success">
-                            <%= formatBytes(stats.diskInfo.free || (stats.diskInfo.total - stats.diskInfo.used)) %>
-                        </span>
-                    </div>
-                </div>
+<div class="content-grid">
+    <!-- Disk Info -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">🖥️ Ổ cứng Server</h3>
+        </div>
+        <div class="card-body">
+            <div class="disk-row">
+                <span class="text-secondary">Đã dùng</span>
+                <span class="text-bold"><%= formatBytes(stats.diskInfo.used) %> / <%= formatBytes(stats.diskInfo.total) %></span>
             </div>
-
-            <div class="card">
-                <div class="card-header">
-                    <h3 class="card-title">🕒 Video vừa upload</h3>
-                    <a href="/videos" class="btn btn-sm btn-outline">Xem tất cả</a>
-                </div>
-                <div class="card-body">
-                    <% if (recentVideos.length===0) { %>
-                        <p class="text-muted text-center">Chưa có video nào</p>
-                        <% } %>
-                            <% recentVideos.forEach(function(v) { %>
-                                <div class="recent-video-item">
-                                    <div class="recent-video-info">
-                                        <div class="recent-video-title">
-                                            <%= v.title %>
-                                        </div>
-                                        <div class="recent-video-meta">
-                                            <%= v.genre || 'Không có thể loại' %> · <%= v.uploader_name %>
-                                        </div>
-                                    </div>
-                                    <span class="status-badge status-<%= v.status %>">
-                                        <%= v.status==='done' ? '✅ Xong' : v.status==='uploading' ? '⏳ Đang up' :
-                                            v.status==='error' ? '❌ Lỗi' : v.status==='stopped' ? '⏹ Dừng' : '⏳ Chờ' %>
-                                    </span>
-                                </div>
-                                <% }); %>
-                </div>
+            <div class="progress-bar-container" style="margin:0.6rem 0">
+                <% const diskPct = pct(stats.diskInfo.used, stats.diskInfo.total); %>
+                <div class="progress-bar" style="width:<%= diskPct %>%;background:<%= diskPct>85?'var(--red)':diskPct>65?'var(--amber)':'var(--gradient)' %>"></div>
+            </div>
+            <div class="disk-row">
+                <span class="text-muted">Còn trống</span>
+                <span class="text-success"><%= formatBytes(stats.diskInfo.free||(stats.diskInfo.total-stats.diskInfo.used)) %></span>
+            </div>
+            <div class="disk-row" style="margin-top:.4rem">
+                <span class="text-muted">Mức sử dụng</span>
+                <span style="color:<%= diskPct>85?'var(--red)':diskPct>65?'var(--amber)':'var(--green)' %>"><strong><%= diskPct %>%</strong></span>
             </div>
         </div>
+    </div>
 
-        <%- include('footer') %>
+    <!-- Recent Videos -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">🕒 Video vừa upload</h3>
+            <a href="/videos" class="btn btn-sm btn-secondary">Xem tất cả →</a>
+        </div>
+        <div class="card-body">
+            <% if (recentVideos.length===0) { %>
+                <div class="empty-state" style="padding:1.5rem">
+                    <div class="empty-state-icon">🎬</div>
+                    <div class="empty-state-text">Chưa có video nào</div>
+                </div>
+            <% } %>
+            <% recentVideos.forEach(function(v) { %>
+                <div class="recent-video-item">
+                    <div class="recent-video-info">
+                        <div class="recent-video-title"><%= v.title %></div>
+                        <div class="recent-video-meta"><%= v.genre||'—' %> · <%= v.uploader_name %></div>
+                    </div>
+                    <span class="status-badge status-<%= v.status %>">
+                        <%= v.status==='done'?'✅ Xong':v.status==='uploading'?'⏫ Đang up':v.status==='error'?'❌ Lỗi':v.status==='stopped'?'⏹ Dừng':'⏳ Chờ' %>
+                    </span>
+                </div>
+            <% }); %>
+        </div>
+    </div>
+</div>
+
+<%- include('footer') %>

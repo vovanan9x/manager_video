@@ -1,276 +1,246 @@
-<%- include('header') %>
+<%- include('header', { pageTitle: 'Servers - VideoManager' }) %>
 
-    <div class="page-header">
-        <h1 class="page-title">🖥️ Quản lí Servers</h1>
+<div class="page-header">
+    <h1 class="page-title">🖥️ Quản lí Servers</h1>
+</div>
+
+<% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
+<% if (success) { %><div class="alert alert-success"><%= success %></div><% } %>
+
+<div class="content-grid-2">
+    <!-- Add form -->
+    <div class="card">
+        <div class="card-header"><h3 class="card-title">➕ Thêm Server</h3></div>
+        <div class="card-body">
+            <form method="POST" action="/servers/add">
+                <div class="form-group">
+                    <label class="form-label">Tên server *</label>
+                    <input type="text" name="name" class="form-control" placeholder="VD: Storage Server #1" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Loại kết nối *</label>
+                    <select name="type" id="serverType" class="form-control" onchange="toggleServerFields(this.value)">
+                        <option value="sftp">🔐 SFTP</option>
+                        <option value="http">🌐 HTTP Upload</option>
+                    </select>
+                </div>
+                <div id="remoteFields" style="display:none">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Host</label>
+                            <input type="text" name="host" class="form-control" placeholder="192.168.1.100">
+                        </div>
+                        <div class="form-group" style="max-width:110px">
+                            <label class="form-label">Port</label>
+                            <input type="number" name="port" class="form-control" placeholder="22">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Username</label>
+                            <input type="text" name="username" class="form-control">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Password <span class="text-muted" style="text-transform:none;font-weight:400;font-size:.7rem">(hoặc passphrase)</span></label>
+                            <input type="password" name="password" class="form-control">
+                        </div>
+                    </div>
+                    <div class="form-group" id="sftpKeyGroup" style="display:none">
+                        <label class="form-label">🔑 SSH Private Key</label>
+                        <textarea name="private_key" class="form-control" rows="5"
+                            placeholder="-----BEGIN OPENSSH PRIVATE KEY-----&#10;...&#10;-----END OPENSSH PRIVATE KEY-----"
+                            style="font-family:monospace;font-size:12px"></textarea>
+                        <div class="form-hint">Dán nội dung file <code>~/.ssh/id_rsa</code> hoặc <code>id_ed25519</code></div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Root Path *</label>
+                    <input type="text" name="root_path" class="form-control" id="rootPathInput"
+                        placeholder="/var/www/videos (SFTP) hoặc /videos (HTTP)">
+                    <div class="form-hint" id="rootPathHint">Đường dẫn thư mục lưu video trên server.</div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Base URL <span class="text-muted" style="text-transform:none;font-weight:400;font-size:.7rem">(để tạo link video)</span></label>
+                    <input type="url" name="base_url" class="form-control" placeholder="https://cdn.example.com/videos">
+                    <div class="form-hint">URL gốc để tạo link phát video.</div>
+                </div>
+                <button type="submit" class="btn btn-primary">➕ Thêm Server</button>
+            </form>
+        </div>
     </div>
 
-    <% if (error) { %>
-        <div class="alert alert-danger" style="margin-bottom:1rem">⚠️ <%= error %>
+    <!-- Server list -->
+    <div>
+        <div class="card-title" style="margin-bottom:.75rem;padding:.2rem 0">
+            📋 Đã thêm (<%= servers.length %>)
         </div>
+        <% if (servers.length===0) { %>
+            <div class="empty-state">
+                <div class="empty-state-icon">🖥️</div>
+                <div class="empty-state-text">Chưa có server nào. Thêm server đầu tiên!</div>
+            </div>
         <% } %>
-            <% if (success) { %>
-                <div class="alert alert-success" style="margin-bottom:1rem">
-                    <%= success %>
+        <div style="display:flex;flex-direction:column;gap:.75rem">
+        <% servers.forEach(function(s){ %>
+            <div class="server-card">
+                <div class="server-card-header">
+                    <div>
+                        <div class="server-name"><%= s.name %></div>
+                        <div class="server-host"><%= s.host ? s.host+(s.port?':'+s.port:'') : 'HTTP endpoint' %></div>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:.5rem">
+                        <span class="server-type-badge"><%= s.type.toUpperCase() %></span>
+                        <span style="font-size:.75rem;color:<%= s.is_active?'var(--green)':'var(--red)' %>">
+                            <%= s.is_active?'🟢 Active':'🔴 Off' %>
+                        </span>
+                    </div>
                 </div>
+                <div class="text-xs text-muted" style="margin-bottom:.75rem;font-family:monospace"><%= s.root_path %></div>
+                <% if(s.base_url){ %>
+                    <div class="text-xs text-secondary" style="margin-bottom:.75rem"><%= s.base_url %></div>
                 <% } %>
+                <div style="display:flex;gap:.5rem">
+                    <button class="btn btn-xs btn-secondary" onclick="testServer(<%= s.id %>,this)">🔌 Test</button>
+                    <button class="btn btn-xs btn-secondary" onclick="openEditServer(<%= s.id %>)">✏️ Sửa</button>
+                    <button class="btn btn-xs btn-danger delete-server-btn" data-id="<%= s.id %>" data-name="<%= s.name %>">🗑️</button>
+                </div>
+            </div>
+        <% }); %>
+        </div>
+    </div>
+</div>
 
-                    <div class="content-grid-2">
-                        <!-- Add server form -->
-                        <div class="card">
-                            <div class="card-header">
-                                <h3 class="card-title">➕ Thêm Server</h3>
-                            </div>
-                            <div class="card-body">
-                                <form method="POST" action="/servers/add">
-                                    <div class="form-group">
-                                        <label class="form-label">Tên server *</label>
-                                        <input type="text" name="name" class="form-control"
-                                            placeholder="VD: Storage Server #1" required>
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-label">Loại kết nối *</label>
-                                        <select name="type" id="serverType" class="form-control"
-                                            onchange="toggleServerFields(this.value)">
-                                            <option value="local">💾 Local (cùng máy)</option>
-                                            <option value="sftp">🔐 SFTP</option>
-                                            <option value="http">🌐 HTTP Upload</option>
-                                        </select>
-                                    </div>
-                                    <div id="remoteFields" style="display:none">
-                                        <div class="form-row">
-                                            <div class="form-group">
-                                                <label class="form-label">Host</label>
-                                                <input type="text" name="host" class="form-control"
-                                                    placeholder="192.168.1.100">
-                                            </div>
-                                            <div class="form-group" style="max-width:120px">
-                                                <label class="form-label">Port</label>
-                                                <input type="number" name="port" class="form-control" placeholder="22">
-                                            </div>
-                                        </div>
-                                        <div class="form-row">
-                                            <div class="form-group">
-                                                <label class="form-label">Username</label>
-                                                <input type="text" name="username" class="form-control">
-                                            </div>
-                                            <div class="form-group">
-                                                <label class="form-label">Password <small class="text-muted">(hoặc
-                                                        passphrase của key)</small></label>
-                                                <input type="password" name="password" class="form-control">
-                                            </div>
-                                        </div>
-                                        <div class="form-group" id="sftpKeyGroup" style="display:none">
-                                            <label class="form-label">🔑 SSH Private Key <small class="text-muted">(nếu
-                                                    server dùng key thay password)</small></label>
-                                            <textarea name="private_key" class="form-control" rows="6"
-                                                placeholder="-----BEGIN OPENSSH PRIVATE KEY-----&#10;...&#10;-----END OPENSSH PRIVATE KEY-----"
-                                                style="font-family:monospace;font-size:12px"></textarea>
-                                            <small class="text-muted">Dán nội dung file <code>~/.ssh/id_rsa</code> hoặc
-                                                <code>id_ed25519</code> vào đây</small>
-                                        </div>
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-label">Root Path *</label>
-                                        <input type="text" name="root_path" class="form-control" id="rootPathInput"
-                                            placeholder="D:\videos (local) hoặc /home (Hetzner Storage Box) hoặc /var/www/videos (SFTP)">
-                                        <small class="text-muted" id="rootPathHint">Đường dẫn thư mục lưu video trên
-                                            máy/server. <strong>Hetzner Storage Box:</strong> thường là
-                                            <code>/home</code> hoặc <code>/</code></small>
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-label">Base URL (để tạo link video)</label>
-                                        <input type="url" name="base_url" class="form-control"
-                                            placeholder="https://cdn.example.com/videos">
-                                        <small class="text-muted" id="baseUrlHint">
-                                            <strong>Hetzner Storage Box (SFTP):</strong> nhập URL HTTPS của Storage
-                                            Box:<br>
-                                            <code>https://u&lt;số&gt;.your-storagebox.de&lt;root_path&gt;</code><br>
-                                            Ví dụ: <code>https://u123456.your-storagebox.de/home</code><br>
-                                            Hệ thống sẽ tự proxy kèm xác thực — người dùng không cần nhập mật khẩu.
-                                        </small>
-                                    </div>
-                                    <button type="submit" class="btn btn-primary">Thêm Server</button>
-                                </form>
-                            </div>
-                        </div>
+<!-- Delete Modal -->
+<div class="modal-overlay" id="deleteServerModal" style="display:none">
+    <div class="modal">
+        <div class="modal-header">
+            <span class="modal-title">🗑️ Xác nhận xóa</span>
+            <button class="modal-close" onclick="closeDeleteModal()">✕</button>
+        </div>
+        <div class="modal-body">
+            <p style="color:var(--text-secondary)">Bạn chắc chắn muốn xóa server <strong id="deleteServerName" style="color:var(--text-primary)"></strong>?</p>
+            <p class="text-xs text-danger" style="margin-top:.5rem">Hành động này không thể hoàn tác.</p>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeDeleteModal()">Hủy</button>
+            <form id="deleteServerForm" method="POST" style="display:inline">
+                <button type="submit" class="btn btn-danger">Xóa</button>
+            </form>
+        </div>
+    </div>
+</div>
 
-                        <!-- Servers list -->
-                        <div class="card">
-                            <div class="card-header">
-                                <h3 class="card-title">📋 Danh sách Servers (<%= servers.length %>)</h3>
-                            </div>
-                            <div class="card-body p-0">
-                                <% if (servers.length===0) { %>
-                                    <p class="text-muted text-center p-3">Chưa có server nào</p>
-                                    <% } %>
-                                        <% servers.forEach(function(s) { %>
-                                            <div class="server-card-item">
-                                                <div class="server-card-header">
-                                                    <div>
-                                                        <div class="server-name">
-                                                            <%= s.name %>
-                                                        </div>
-                                                        <div class="server-meta text-muted text-sm">
-                                                            <span class="type-badge type-<%= s.type %>">
-                                                                <%= s.type.toUpperCase() %>
-                                                            </span>
-                                                            <%= s.host ? s.host + ':' + (s.port || '' ) : 'local' %>
-                                                        </div>
-                                                    </div>
-                                                    <div
-                                                        class="server-status <%= s.is_active ? 'active' : 'inactive' %>">
-                                                        <%= s.is_active ? '🟢 Active' : '🔴 Inactive' %>
-                                                    </div>
-                                                </div>
-                                                <div class="server-path text-sm text-muted">
-                                                    <%= s.root_path %>
-                                                </div>
-                                                <% if (s.base_url) { %>
-                                                    <div class="server-url text-sm">
-                                                        <%= s.base_url %>
-                                                    </div>
-                                                    <% } %>
-                                                        <div class="server-actions">
-                                                            <button class="btn btn-sm btn-outline"
-                                                                onclick="testServer(<%= s.id %>, this)">🔌 Test</button>
-                                                            <button class="btn btn-sm btn-outline"
-                                                                onclick="openEditServer(<%= s.id %>)">✏️ Sửa</button>
-                                                            <form method="POST" action="/servers/delete/<%= s.id %>"
-                                                                style="display:inline"
-                                                                onsubmit="return confirm('Xóa server <%= s.name %>?')">
-                                                                <button type="submit"
-                                                                    class="btn btn-sm btn-danger">🗑️</button>
-                                                            </form>
-                                                        </div>
-                                            </div>
-                                            <% }); %>
-                            </div>
-                        </div>
+<!-- Edit Modal -->
+<div class="modal-overlay" id="editServerModal" style="display:none">
+    <div class="modal modal-lg">
+        <div class="modal-header">
+            <span class="modal-title">✏️ Sửa Server</span>
+            <button class="modal-close" onclick="closeEditServer()">✕</button>
+        </div>
+        <form method="POST" id="editServerForm">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Tên server</label>
+                    <input type="text" name="name" id="esName" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Loại</label>
+                    <select name="type" id="esType" class="form-control" onchange="toggleEditFields(this.value)">
+                        <option value="sftp">🔐 SFTP</option>
+                        <option value="http">🌐 HTTP</option>
+                    </select>
+                </div>
+                <div id="esRemoteFields">
+                    <div class="form-row">
+                        <div class="form-group"><label class="form-label">Host</label><input type="text" name="host" id="esHost" class="form-control"></div>
+                        <div class="form-group" style="max-width:110px"><label class="form-label">Port</label><input type="number" name="port" id="esPort" class="form-control"></div>
                     </div>
-
-                    <!-- Edit Modal -->
-                    <div class="modal-overlay" id="editServerModal" style="display:none">
-                        <div class="modal modal-lg">
-                            <div class="modal-header">
-                                <h3>✏️ Sửa Server</h3>
-                                <button class="modal-close" onclick="closeEditServer()">✕</button>
-                            </div>
-                            <form method="POST" id="editServerForm">
-                                <div class="modal-body">
-                                    <div class="form-group">
-                                        <label class="form-label">Tên server</label>
-                                        <input type="text" name="name" id="esName" class="form-control" required>
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-label">Loại</label>
-                                        <select name="type" id="esType" class="form-control"
-                                            onchange="toggleEditFields(this.value)">
-                                            <option value="local">💾 Local</option>
-                                            <option value="sftp">🔐 SFTP</option>
-                                            <option value="http">🌐 HTTP</option>
-                                        </select>
-                                    </div>
-                                    <div id="esRemoteFields">
-                                        <div class="form-row">
-                                            <div class="form-group"><label class="form-label">Host</label><input
-                                                    type="text" name="host" id="esHost" class="form-control"></div>
-                                            <div class="form-group" style="max-width:120px"><label
-                                                    class="form-label">Port</label><input type="number" name="port"
-                                                    id="esPort" class="form-control"></div>
-                                        </div>
-                                        <div class="form-row">
-                                            <div class="form-group"><label class="form-label">Username</label><input
-                                                    type="text" name="username" id="esUsername" class="form-control">
-                                            </div>
-                                            <div class="form-group"><label class="form-label">Password <small
-                                                        class="text-muted">(hoặc passphrase)</small></label><input
-                                                    type="password" name="password" id="esPassword"
-                                                    class="form-control"></div>
-                                        </div>
-                                        <div class="form-group" id="esKeyGroup" style="display:none">
-                                            <label class="form-label">🔑 SSH Private Key</label>
-                                            <textarea name="private_key" id="esPrivateKey" class="form-control" rows="5"
-                                                style="font-family:monospace;font-size:12px"
-                                                placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"></textarea>
-                                            <small class="text-muted">Để trống nếu giữ nguyên key cũ</small>
-                                        </div>
-                                    </div>
-                                    <div class="form-group"><label class="form-label">Root Path</label><input
-                                            type="text" name="root_path" id="esRootPath" class="form-control" required>
-                                    </div>
-                                    <div class="form-group"><label class="form-label">Base URL</label><input type="url"
-                                            name="base_url" id="esBaseUrl" class="form-control"></div>
-                                    <div class="form-group">
-                                        <label class="form-label">
-                                            <input type="checkbox" name="is_active" id="esIsActive" value="1" checked>
-                                            Đang hoạt động
-                                        </label>
-                                    </div>
-                                </div>
-                                <div class="modal-footer">
-                                    <button type="button" class="btn btn-outline"
-                                        onclick="closeEditServer()">Hủy</button>
-                                    <button type="submit" class="btn btn-primary">Lưu</button>
-                                </div>
-                            </form>
-                        </div>
+                    <div class="form-row">
+                        <div class="form-group"><label class="form-label">Username</label><input type="text" name="username" id="esUsername" class="form-control"></div>
+                        <div class="form-group"><label class="form-label">Password</label><input type="password" name="password" id="esPassword" class="form-control"></div>
                     </div>
-
-                    <div id="__serversData" data-json="<%= JSON.stringify(servers).replace(/\" /g, '&quot;' ) %>"
-                        style="display:none">
+                    <div class="form-group" id="esKeyGroup" style="display:none">
+                        <label class="form-label">🔑 SSH Private Key</label>
+                        <textarea name="private_key" id="esPrivateKey" class="form-control" rows="4"
+                            style="font-family:monospace;font-size:12px"
+                            placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"></textarea>
+                        <div class="form-hint">Để trống nếu giữ nguyên key cũ</div>
                     </div>
+                </div>
+                <div class="form-group"><label class="form-label">Root Path</label><input type="text" name="root_path" id="esRootPath" class="form-control" required></div>
+                <div class="form-group"><label class="form-label">Base URL</label><input type="url" name="base_url" id="esBaseUrl" class="form-control"></div>
+                <div class="form-group">
+                    <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer">
+                        <input type="checkbox" name="is_active" id="esIsActive" value="1" checked>
+                        <span>Đang hoạt động</span>
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeEditServer()">Hủy</button>
+                <button type="submit" class="btn btn-primary">💾 Lưu</button>
+            </div>
+        </form>
+    </div>
+</div>
 
-                    <script>
-                        const serverData = JSON.parse(document.getElementById('__serversData').dataset.json || '[]');
+<script>
+    const serverData = <%- JSON.stringify(servers) %>;
+</script>
 
-                        function toggleServerFields(type) {
-                            document.getElementById('remoteFields').style.display = type === 'local' ? 'none' : '';
-                            const kg = document.getElementById('sftpKeyGroup');
-                            if (kg) kg.style.display = type === 'sftp' ? '' : 'none';
-                        }
+<script>
 
-                        function toggleEditFields(type) {
-                            document.getElementById('esRemoteFields').style.display = type === 'local' ? 'none' : '';
-                            const kg = document.getElementById('esKeyGroup');
-                            if (kg) kg.style.display = type === 'sftp' ? '' : 'none';
-                        }
+    function toggleServerFields(type) {
+        document.getElementById('remoteFields').style.display = '';
+        const kg = document.getElementById('sftpKeyGroup');
+        if(kg) kg.style.display = type==='sftp'?'':'none';
+    }
+    function toggleEditFields(type) {
+        document.getElementById('esRemoteFields').style.display = '';
+        const kg = document.getElementById('esKeyGroup');
+        if(kg) kg.style.display = type==='sftp'?'':'none';
+    }
+    function openEditServer(id) {
+        const s = serverData.find(x=>x.id===id); if(!s) return;
+        document.getElementById('esName').value     = s.name;
+        document.getElementById('esType').value     = s.type;
+        document.getElementById('esHost').value     = s.host||'';
+        document.getElementById('esPort').value     = s.port||'';
+        document.getElementById('esUsername').value = s.username||'';
+        document.getElementById('esPassword').value = '';
+        document.getElementById('esPrivateKey').value = '';
+        document.getElementById('esRootPath').value = s.root_path;
+        document.getElementById('esBaseUrl').value  = s.base_url||'';
+        document.getElementById('esIsActive').checked = !!s.is_active;
+        document.getElementById('editServerForm').action = '/servers/edit/'+id;
+        toggleEditFields(s.type);
+        document.getElementById('editServerModal').style.display = 'flex';
+    }
+    function closeEditServer()  { document.getElementById('editServerModal').style.display='none'; }
+    function closeDeleteModal() { document.getElementById('deleteServerModal').style.display='none'; }
 
-                        function openEditServer(id) {
-                            const s = serverData.find(x => x.id === id);
-                            if (!s) return;
-                            document.getElementById('esName').value = s.name;
-                            document.getElementById('esType').value = s.type;
-                            document.getElementById('esHost').value = s.host || '';
-                            document.getElementById('esPort').value = s.port || '';
-                            document.getElementById('esUsername').value = s.username || '';
-                            document.getElementById('esPassword').value = '';
-                            document.getElementById('esPrivateKey').value = ''; // don't pre-fill key for security
-                            document.getElementById('esRootPath').value = s.root_path;
-                            document.getElementById('esBaseUrl').value = s.base_url || '';
-                            document.getElementById('esIsActive').checked = !!s.is_active;
-                            document.getElementById('editServerForm').action = '/servers/edit/' + id;
-                            toggleEditFields(s.type);
-                            document.getElementById('editServerModal').style.display = 'flex';
-                        }
+    async function testServer(id, btn) {
+        btn.disabled=true; btn.textContent='⏳...';
+        try {
+            const res  = await fetch('/servers/test/'+id,{method:'POST'});
+            const data = await res.json();
+            btn.textContent = data.ok?'✅ OK':'❌ Fail';
+            btn.title = data.message;
+            setTimeout(()=>{ btn.textContent='🔌 Test'; btn.disabled=false; },3000);
+        } catch(e) { btn.textContent='❌ Error'; btn.disabled=false; }
+    }
 
-                        function closeEditServer() {
-                            document.getElementById('editServerModal').style.display = 'none';
-                        }
+    document.addEventListener('click',function(e){
+        const btn=e.target.closest('.delete-server-btn'); if(!btn) return;
+        document.getElementById('deleteServerName').textContent = btn.dataset.name;
+        document.getElementById('deleteServerForm').action = '/servers/delete/'+btn.dataset.id;
+        document.getElementById('deleteServerModal').style.display = 'flex';
+    });
 
-                        async function testServer(id, btn) {
-                            btn.disabled = true;
-                            btn.textContent = '⏳ Testing...';
-                            try {
-                                const res = await fetch('/servers/test/' + id, { method: 'POST' });
-                                const data = await res.json();
-                                btn.textContent = data.ok ? '✅ OK' : '❌ Fail';
-                                btn.title = data.message;
-                                setTimeout(() => { btn.textContent = '🔌 Test'; btn.disabled = false; }, 3000);
-                            } catch (e) {
-                                btn.textContent = '❌ Error';
-                                btn.disabled = false;
-                            }
-                        }
-                    </script>
+    // Hiện SFTP fields mặc định khi tải trang
+    window.addEventListener('DOMContentLoaded', () => {
+        toggleServerFields('sftp');
+    });
+</script>
 
-                    <%- include('footer') %>
+<%- include('footer') %>
