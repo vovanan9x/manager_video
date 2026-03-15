@@ -88,6 +88,10 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`\n🎥 Video Manager running at http://localhost:${PORT}`);
     if (!isProd) console.log(`📋 Default login: admin / admin123\n`);
+
+    // Tự động re-enqueue video pending/uploading còn tồn đọng từ session trước
+    const { recoverPendingUploads } = require('./services/uploadService');
+    recoverPendingUploads();
 });
 
 module.exports = app;

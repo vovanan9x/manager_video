@@ -371,6 +371,117 @@ function getQueueStatus() {
     };
 }
 
+function recoverPendingUploads() {
+    const pending = db.prepare(`
+        SELECT v.*, s.id as srv_id, s.type as srv_type, s.host, s.port, s.username,
+               s.password, s.private_key, s.root_path, s.base_url
+        FROM videos v
+        LEFT JOIN servers s ON v.server_id = s.id
+        WHERE v.status IN ('pending', 'uploading')
+        ORDER BY v.created_at ASC
+    `).all();
+
+    if (pending.length === 0) return;
+    console.log(`[Recovery] Tìm thấy ${pending.length} video chưa hoàn thành — đang re-enqueue...`);
+
+    for (const video of pending) {
+        // Reset uploading → pending
+        if (video.status === 'uploading') {
+            db.prepare("UPDATE videos SET status='pending', upload_progress=0 WHERE id=?").run(video.id);
+        }
+
+        const server = video.srv_id ? {
+            id: video.srv_id, type: video.srv_type, host: video.host, port: video.port,
+            username: video.username, password: video.password, private_key: video.private_key,
+            root_path: video.root_path, base_url: video.base_url,
+        } : null;
+
+        if (!server) {
+            console.warn(`[Recovery] Video #${video.id} không có server — bỏ qua`);
+            db.prepare("UPDATE videos SET status='error' WHERE id=?").run(video.id);
+            continue;
+        }
+
+        const remotePath = video.remote_path || ((video.folder_id ? 'f' + video.folder_id + '/' : '') + video.filename);
+        const sourceType = video.source_type;
+
+        if (sourceType === 'local') {
+            // File tạm đã bị xóa sau restart — không thể recover
+            console.warn(`[Recovery] Video #${video.id} (local) — file tạm đã mất, đặt lỗi`);
+            db.prepare("UPDATE videos SET status='error' WHERE id=?").run(video.id);
+            continue;
+        }
+
+        if (sourceType === 'remote' && video.source_url) {
+            const vid = video;
+            enqueueUpload(video.id, () => _doFetchRemoteVideo(vid.id, vid.source_url, server, remotePath, { cancelled: false }));
+            console.log(`[Recovery] Video #${video.id} (remote) đã được re-enqueue`);
+            continue;
+        }
+
+        if ((sourceType === 'drive' || (video.source_url && video.source_url.includes('drive.google.com'))) && video.source_url) {
+            const fileIdMatch = video.source_url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+            if (!fileIdMatch) {
+                db.prepare("UPDATE videos SET status='error' WHERE id=?").run(video.id);
+                continue;
+            }
+            const fileId = fileIdMatch[1];
+            const vid = video;
+            enqueueUpload(video.id, async () => {
+                try {
+                    db.prepare("UPDATE videos SET status='uploading', upload_progress=0 WHERE id=?").run(vid.id);
+                    emitProgress(vid.id, 0, 'uploading');
+                    // Inline Drive download (xem api.js getDriveDownloadStream)
+                    const axios = require('axios');
+                    const os = require('os');
+                    const urls = [
+                        `https://drive.usercontent.google.com/download?id=${fileId}&export=download&authuser=0&confirm=t`,
+                        `https://drive.google.com/uc?export=download&id=${fileId}&confirm=t`,
+                    ];
+                    let driveStream = null, driveSize = 0;
+                    for (const url of urls) {
+                        try {
+                            const resp = await axios.get(url, { responseType: 'stream', maxRedirects: 10, headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': '*/*' }, timeout: 60000, validateStatus: s => s < 500 });
+                            const ct = resp.headers['content-type'] || '';
+                            if (!ct.includes('text/html')) { driveStream = resp.data; driveSize = parseInt(resp.headers['content-length'] || '0', 10); break; }
+                            const chunks = []; for await (const chunk of resp.data) chunks.push(chunk);
+                            const html = Buffer.concat(chunks).toString('utf8');
+                            const cookies = [].concat(resp.headers['set-cookie'] || []);
+                            const cookieStr = cookies.map(c => c.split(';')[0]).join('; ');
+                            const confirmMatch = html.match(/name="confirm"\s+value="([^"]+)"/i) || html.match(/"confirm"\s*:\s*"([^"]+)"/i);
+                            const uuidMatch = html.match(/name="uuid"\s+value="([^"]+)"/i);
+                            let cu = `https://drive.usercontent.google.com/download?id=${fileId}&export=download&authuser=0&confirm=t`;
+                            if (confirmMatch) cu += `&confirm=${confirmMatch[1]}`;
+                            if (uuidMatch) cu += `&uuid=${uuidMatch[1]}`;
+                            const r2 = await axios.get(cu, { responseType: 'stream', maxRedirects: 10, headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': '*/*', ...(cookieStr ? { 'Cookie': cookieStr } : {}) }, timeout: 60000 });
+                            if (!(r2.headers['content-type'] || '').includes('text/html')) { driveStream = r2.data; driveSize = parseInt(r2.headers['content-length'] || '0', 10); break; }
+                            r2.data.destroy();
+                        } catch (e) { if (url === urls[urls.length - 1]) throw e; }
+                    }
+                    if (!driveStream) throw new Error('Không thể tải file từ Google Drive');
+                    const tmpPath = require('path').join(os.tmpdir(), vid.filename);
+                    const writeStream = require('fs').createWriteStream(tmpPath);
+                    let downloaded = 0;
+                    driveStream.on('data', chunk => { downloaded += chunk.length; if (driveSize > 0) emitProgress(vid.id, Math.floor(downloaded / driveSize * 50), 'uploading'); });
+                    await new Promise((resolve, reject) => { driveStream.pipe(writeStream); writeStream.on('finish', resolve); writeStream.on('error', reject); driveStream.on('error', reject); });
+                    await _doUploadToServer(vid.id, tmpPath, server, remotePath);
+                } catch (err) {
+                    console.error(`[Recovery Drive Error] Video #${vid.id}:`, err.message);
+                    addErrorLog('drive_upload', { video_id: vid.id, video_title: vid.title, server_id: server.id, server_label: server.name, message: err.message, stack: err.stack });
+                    db.prepare("UPDATE videos SET status='error' WHERE id=?").run(vid.id);
+                    emitProgress(vid.id, 0, 'error');
+                }
+            });
+            console.log(`[Recovery] Video #${video.id} (drive) đã được re-enqueue`);
+            continue;
+        }
+
+        console.warn(`[Recovery] Video #${video.id} source_type='${sourceType}' không xử lý được — bỏ qua`);
+    }
+
+    console.log(`[Recovery] Hoàn tất: ${pending.length} video đã được xem xét`);
+}
+
 module.exports = {
     uploadToServer,
     fetchRemoteVideo,
@@ -386,4 +497,5 @@ module.exports = {
     pauseQueue,
     resumeQueue,
     isQueuePaused,
+    recoverPendingUploads,
 };
