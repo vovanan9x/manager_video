@@ -363,4 +363,6 @@ module.exports = {
     emitProgress,
     getActiveUploads,
     getQueueStatus,
+    enqueueUpload,
+    _doUploadToServer,
 };

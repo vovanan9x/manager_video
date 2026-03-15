@@ -3,7 +3,7 @@ const router = express.Router();
 const path = require('path');
 const db = require('../config/database');
 const upload = require('../middleware/upload');
-const { uploadToServer, fetchRemoteVideo, stopUpload, emitProgress } = require('../services/uploadService');
+const { uploadToServer, fetchRemoteVideo, stopUpload, emitProgress, enqueueUpload } = require('../services/uploadService');
 const { deleteFromServer, deleteFromSftp } = require('../services/serverService');
 const crypto = require('crypto');
 const fs = require('fs');
@@ -329,9 +329,8 @@ router.post('/videos/drive-upload', requireSessionUser, async (req, res) => {
 
     const videoId = result.lastInsertRowid;
 
-    // Run upload asynchronously
-    (async () => {
-        const { emitProgress } = require('../services/uploadService');
+    // Toàn bộ quá trình (download từ Drive + upload lên server) đi qua queue
+    enqueueUpload(videoId, async () => {
         try {
             db.prepare("UPDATE videos SET status='uploading', upload_progress=0 WHERE id=?").run(videoId);
             emitProgress(videoId, 0, 'uploading');
@@ -354,15 +353,18 @@ router.post('/videos/drive-upload', requireSessionUser, async (req, res) => {
                 stream.on('error', reject);
             });
 
-            // Now upload temp file to server (queue-aware — cleanup handled inside uploadService)
-            uploadToServer(videoId, tmpPath, server, remotePath);
+            // Upload temp file to server — gọi nội tại _doUploadToServer trực tiếp
+            // vì đã nằm trong slot queue rồi, không cần enqueue lần nữa
+            await require('../services/uploadService')._doUploadToServer(videoId, tmpPath, server, remotePath);
 
         } catch (err) {
             console.error('[Drive Upload Error]', err.message);
             db.prepare("UPDATE videos SET status='error' WHERE id=?").run(videoId);
             emitProgress(videoId, 0, 'error');
         }
-    })();
+    });
+
+
 
     res.json({ success: true, videoId, message: 'Google Drive upload started', fileId });
 });
