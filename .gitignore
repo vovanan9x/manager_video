@@ -1,0 +1,19 @@
+node_modules/
+.env
+
+# SQLite database files — không track lên git
+data/*.db
+data/*.db-shm
+data/*.db-wal
+data/*.db-journal
+
+# Upload temp files
+uploads/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
