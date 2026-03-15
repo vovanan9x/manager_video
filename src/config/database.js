@@ -113,11 +113,15 @@ initDatabase();
 function runMigrations() {
   const migrations = [
     // Format: { table, column, definition }
-    // Ví dụ thêm cột mới:
-    // { table: 'videos', column: 'quality', definition: "TEXT DEFAULT 'HD'" },
-    { table: 'videos', column: 'source_type', definition: "TEXT DEFAULT 'local'" },
-    { table: 'videos', column: 'source_url',  definition: 'TEXT' },
+    // videos table
+    { table: 'videos', column: 'source_type',   definition: "TEXT DEFAULT 'local'" },
+    { table: 'videos', column: 'source_url',    definition: 'TEXT' },
     { table: 'videos', column: 'original_name', definition: 'TEXT' },
+    // servers table — các cột thêm sau
+    { table: 'servers', column: 'private_key',  definition: 'TEXT' },
+    { table: 'servers', column: 'api_key',      definition: 'TEXT' },
+    { table: 'servers', column: 'cdn_zone_id',  definition: 'TEXT' },
+    { table: 'servers', column: 'cdn_api_token',definition: 'TEXT' },
   ];
 
   for (const m of migrations) {
