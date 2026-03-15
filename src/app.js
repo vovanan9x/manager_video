@@ -38,6 +38,14 @@ app.use('/servers', require('./routes/servers'));
 app.use('/settings', require('./routes/settings'));
 app.use('/database', require('./routes/database'));
 app.use('/processes', require('./routes/processes'));
+// CORS — chỉ áp dụng cho /api (cho phép gọi từ domain khác qua X-Api-Key)
+app.use('/api', (req, res, next) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Api-Key, Authorization');
+    if (req.method === 'OPTIONS') return res.sendStatus(204); // preflight
+    next();
+});
 app.use('/api', require('./routes/api'));
 // app.use('/stream', require('./routes/stream')); // Stream proxy disabled
 app.use('/errors', require('./routes/errors'));

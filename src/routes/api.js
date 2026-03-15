@@ -389,6 +389,54 @@ router.get('/folders', apiAuth, (req, res) => {
 
 
 
+// POST /api/folders - create a folder
+router.post('/folders', apiAuth, (req, res) => {
+    const { name, server_id, parent_id } = req.body;
+    if (!name || !server_id) {
+        return res.status(400).json({ error: 'name and server_id are required' });
+    }
+
+    const server = db.prepare('SELECT * FROM servers WHERE id = ?').get(server_id);
+    if (!server) return res.status(404).json({ error: 'Server not found' });
+
+    let parentPath = '';
+    if (parent_id) {
+        const parent = db.prepare('SELECT * FROM folders WHERE id = ?').get(parent_id);
+        if (!parent) return res.status(404).json({ error: 'Parent folder not found' });
+        parentPath = parent.path;
+    }
+
+    const folderPath = parentPath ? `${parentPath}/${name.trim()}` : name.trim();
+
+    const existing = db.prepare('SELECT id FROM folders WHERE path = ? AND server_id = ?').get(folderPath, server_id);
+    if (existing) return res.status(409).json({ error: 'Folder already exists at this path' });
+
+    const result = db.prepare('INSERT INTO folders (name, parent_id, server_id, path) VALUES (?, ?, ?, ?)')
+        .run(name.trim(), parent_id || null, server_id, folderPath);
+
+    const folder = db.prepare('SELECT id, name, path, server_id, parent_id FROM folders WHERE id = ?').get(result.lastInsertRowid);
+    res.status(201).json({ success: true, folder });
+});
+
+// DELETE /api/folders/:id - delete a folder (admin only)
+router.delete('/folders/:id', apiAuth, (req, res) => {
+    const folder = db.prepare('SELECT * FROM folders WHERE id = ?').get(req.params.id);
+    if (!folder) return res.status(404).json({ error: 'Folder not found' });
+
+    const hasVideos = db.prepare('SELECT COUNT(*) as count FROM videos WHERE folder_id = ?').get(req.params.id);
+    if (hasVideos.count > 0) {
+        return res.status(409).json({ error: 'Folder still has videos. Delete all videos first.' });
+    }
+
+    const hasChildren = db.prepare('SELECT COUNT(*) as count FROM folders WHERE parent_id = ?').get(req.params.id);
+    if (hasChildren.count > 0) {
+        return res.status(409).json({ error: 'Folder still has subfolders. Delete subfolders first.' });
+    }
+
+    db.prepare('DELETE FROM folders WHERE id = ?').run(req.params.id);
+    res.json({ success: true, message: 'Folder deleted' });
+});
+
 // DELETE /api/videos/:id
 router.delete('/videos/:id', apiAuth, async (req, res) => {
     const video = db.prepare('SELECT v.*, s.type as server_type, s.root_path, s.host, s.port, s.username as s_username, s.password as s_password FROM videos v LEFT JOIN servers s ON v.server_id = s.id WHERE v.id = ?').get(req.params.id);

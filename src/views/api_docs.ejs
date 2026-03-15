@@ -266,6 +266,8 @@
             <div class="api-section-title">Tiện ích</div>
             <a href="#list-servers">Danh sách server <span class="tag-new">NEW</span></a>
             <a href="#list-folders">Danh sách folder <span class="tag-new">NEW</span></a>
+            <a href="#create-folder">Tạo folder <span class="tag-new">NEW</span></a>
+            <a href="#delete-folder">Xóa folder <span class="tag-new">NEW</span></a>
         </div>
 
         <!-- Main content -->
@@ -756,6 +758,97 @@ curl "<%= settingDomain %>/api/videos/12/link" \
                         <div class="code-block">
                             <div class="code-block-header"><span>Response</span></div>
                             <pre>{ "success": true, "folders": [ { "id": 3, "name": "phim", "path": "phim", "server_id": 2 } ] }</pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CREATE FOLDER -->
+            <div class="api-section" id="create-folder">
+                <div class="endpoint-card">
+                    <div class="endpoint-header">
+                        <span class="method-badge method-post">POST</span>
+                        <span class="endpoint-path">/api/folders</span>
+                        <span class="endpoint-desc">Tạo thư mục mới <span class="tag-new">NEW</span></span>
+                    </div>
+                    <div class="endpoint-body">
+                        <table class="param-table">
+                            <tr><th>Tham số</th><th>Bắt buộc</th><th>Mô tả</th></tr>
+                            <tr>
+                                <td class="param-name">name</td>
+                                <td class="param-req">✓</td>
+                                <td>Tên thư mục</td>
+                            </tr>
+                            <tr>
+                                <td class="param-name">server_id</td>
+                                <td class="param-req">✓</td>
+                                <td>ID server chứa thư mục</td>
+                            </tr>
+                            <tr>
+                                <td class="param-name">parent_id</td>
+                                <td class="param-opt">tuỳ chọn</td>
+                                <td>ID thư mục cha (bỏ trống để tạo thư mục gốc)</td>
+                            </tr>
+                        </table>
+                        <div class="code-block">
+                            <div class="code-block-header"><span>curl — tạo thư mục gốc</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+                            <pre>curl -X POST "<%= settingDomain %>/api/folders" \
+  -H "X-Api-Key: your_api_key" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "phim-le", "server_id": 1}'</pre>
+                        </div>
+                        <div class="code-block">
+                            <div class="code-block-header"><span>curl — tạo thư mục con</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+                            <pre>curl -X POST "<%= settingDomain %>/api/folders" \
+  -H "X-Api-Key: your_api_key" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "2024", "server_id": 1, "parent_id": 3}'</pre>
+                        </div>
+                        <div class="code-block">
+                            <div class="code-block-header"><span>Response (201)</span></div>
+                            <pre>{
+  "success": true,
+  "folder": {
+    "id": 5,
+    "name": "phim-le",
+    "path": "phim-le",
+    "server_id": 1,
+    "parent_id": null
+  }
+}</pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- DELETE FOLDER -->
+            <div class="api-section" id="delete-folder">
+                <div class="endpoint-card">
+                    <div class="endpoint-header">
+                        <span class="method-badge method-del">DELETE</span>
+                        <span class="endpoint-path">/api/folders/:id</span>
+                        <span class="endpoint-desc">Xóa thư mục <span class="tag-new">NEW</span></span>
+                    </div>
+                    <div class="endpoint-body">
+                        <div class="alert-info">
+                            ⚠️ Chỉ xóa được thư mục <strong>rỗng</strong> — không có video và không có thư mục con bên trong.
+                        </div>
+                        <div class="code-block">
+                            <div class="code-block-header"><span>curl</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+                            <pre>curl -X DELETE "<%= settingDomain %>/api/folders/5" \
+  -H "X-Api-Key: your_api_key"</pre>
+                        </div>
+                        <div class="code-block">
+                            <div class="code-block-header"><span>Response – thành công</span></div>
+                            <pre>{ "success": true, "message": "Folder deleted" }</pre>
+                        </div>
+                        <div class="code-block">
+                            <div class="code-block-header"><span>Response – còn video (409)</span></div>
+                            <pre>{ "error": "Folder still has videos. Delete all videos first." }</pre>
+                        </div>
+                        <div class="code-block">
+                            <div class="code-block-header"><span>Response – còn subfolder (409)</span></div>
+                            <pre>{ "error": "Folder still has subfolders. Delete subfolders first." }</pre>
                         </div>
                     </div>
                 </div>
