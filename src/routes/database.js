@@ -179,6 +179,11 @@ router.post('/table/:name/add-column', (req, res) => {
     if (!colName || !colType) {
         return res.redirect(`/database/table/${encodeURIComponent(tableName)}?error=Tên+và+kiểu+cột+là+bắt+buộc`);
     }
+    // Whitelist kiểu cột hợp lệ
+    const VALID_COL_TYPES = ['TEXT', 'INTEGER', 'REAL', 'BLOB', 'NUMERIC', 'DATETIME', 'BOOLEAN'];
+    if (!VALID_COL_TYPES.includes((colType || '').toUpperCase())) {
+        return res.redirect(`/database/table/${encodeURIComponent(tableName)}?error=Kiểu+cột+không+hợp+lệ+(chỉ+TEXT,INTEGER,REAL,BLOB,NUMERIC,DATETIME,BOOLEAN)`);
+    }
     // Basic sanitize: only allow alphanumeric + underscore column names
     if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(colName)) {
         return res.redirect(`/database/table/${encodeURIComponent(tableName)}?error=Tên+cột+không+hợp+lệ`);
@@ -225,7 +230,16 @@ router.get('/table/:name/export', (req, res) => {
     if (!columns) return res.redirect('/database?error=Bảng+không+tồn+tại');
 
     try {
-        const rows = db.prepare(`SELECT * FROM "${tableName}"`).all();
+        const allRows = db.prepare(`SELECT * FROM "${tableName}"`).all();
+        // Mask sensitive fields
+        const SENSITIVE_FIELDS = { users: ['password'] };
+        const masked = (SENSITIVE_FIELDS[tableName] || []);
+        const rows = allRows.map(row => {
+            if (!masked.length) return row;
+            const safe = { ...row };
+            masked.forEach(f => { if (safe[f] !== undefined) safe[f] = '[REDACTED]'; });
+            return safe;
+        });
         res.setHeader('Content-Disposition', `attachment; filename="${tableName}.json"`);
         res.setHeader('Content-Type', 'application/json; charset=utf-8');
         res.send(JSON.stringify({ table: tableName, columns: columns.map(c => c.name), rows }, null, 2));

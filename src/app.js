@@ -12,14 +12,20 @@ app.set('views', path.join(__dirname, 'views'));
 
 // Middleware
 app.use(morgan('dev'));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '2mb' }));
+app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 app.use(express.static(path.join(__dirname, '../public')));
+const isProd = process.env.NODE_ENV === 'production';
 app.use(session({
-    secret: process.env.SESSION_SECRET || 'changeme',
+    secret: process.env.SESSION_SECRET || 'changeme-dev-only',
     resave: false,
     saveUninitialized: false,
-    cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 } // 7 days
+    cookie: {
+        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+        httpOnly: true,          // JS không đọc được cookie
+        secure: isProd,          // chỉ gửi qua HTTPS trong production
+        sameSite: 'lax',         // giảm nhẹ CSRF
+    }
 }));
 
 // Routes
@@ -62,17 +68,18 @@ app.use((req, res) => {
 // Error handler
 app.use((err, req, res, next) => {
     console.error(err.stack);
+    const msg = isProd ? 'Lỗi máy chủ nội bộ' : 'Lỗi: ' + err.message;
     res.status(500).render('error', {
         user: req.session?.user || null,
-        message: 'Lỗi máy chủ: ' + err.message,
+        message: msg,
         activePage: ''
     });
 });
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    console.log(`\n🎬 Video Manager running at http://localhost:${PORT}`);
-    console.log(`📋 Default login: admin / admin123\n`);
+    console.log(`\n🎥 Video Manager running at http://localhost:${PORT}`);
+    if (!isProd) console.log(`📋 Default login: admin / admin123\n`);
 });
 
 module.exports = app;

@@ -123,6 +123,7 @@ function runMigrations() {
     { table: 'servers', column: 'api_key',      definition: 'TEXT' },
     { table: 'servers', column: 'cdn_zone_id',  definition: 'TEXT' },
     { table: 'servers', column: 'cdn_api_token',definition: 'TEXT' },
+
   ];
 
   for (const m of migrations) {
@@ -140,6 +141,13 @@ function runMigrations() {
 }
 
 runMigrations();
+
+// Unique index cho idah (idempotent — CREATE INDEX IF NOT EXISTS)
+try {
+  db.prepare('CREATE UNIQUE INDEX IF NOT EXISTS idx_videos_idah ON videos(idah) WHERE idah IS NOT NULL').run();
+} catch (e) {
+  console.error('[Index] Failed to create idx_videos_idah:', e.message);
+}
 
 function addErrorLog(type, { video_id, video_title, server_id, server_label, message, stack } = {}) {
   try {

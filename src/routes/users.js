@@ -35,6 +35,12 @@ router.post('/edit/:id', requireAdmin, (req, res) => {
     const targetUser = db.prepare('SELECT * FROM users WHERE id = ?').get(id);
     if (!targetUser) return res.redirect('/users');
 
+    // Whitelist role values
+    const VALID_ROLES = ['administrator', 'uploader'];
+    if (!VALID_ROLES.includes(role)) {
+        return res.redirect('/users?error=invalid_role');
+    }
+
     let updates = 'role = ?, username = ?';
     let params = [role, username.trim()];
 
