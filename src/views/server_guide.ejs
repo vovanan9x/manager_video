@@ -334,6 +334,7 @@
             <a href="#troubleshoot">🔧 Xử lý sự cố</a>
 
             <div class="section-title">CI/CD</div>
+            <a href="#manual-deploy">🔄 Cập nhật code thủ công</a>
             <a href="#deploy">🚀 Auto Deploy từ GitHub</a>
         </div>
 
@@ -1316,6 +1317,85 @@ pm2 logs manager_video --lines 50</pre>
                     </div>
                 </div>
             </div>
+            <!-- MANUAL DEPLOY -->
+            <div class="guide-section" id="manual-deploy">
+                <h2>🔄 Cập nhật code lên App Server</h2>
+                <p>Quy trình chuẩn để push code từ máy local lên server online sau mỗi lần thay đổi source code.</p>
+
+                <div class="step-card">
+                    <div class="step-header">
+                        <div class="step-num">1</div>
+                        <span class="step-title">Push code từ máy local lên Git</span>
+                    </div>
+                    <div class="step-body">
+                        <div class="code-block">
+                            <div class="code-block-header"><span>Windows — PowerShell / Git Bash</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+                            <pre>cd d:\manager_video
+git add -A
+git commit -m "mô tả thay đổi"
+git push origin main</pre>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="step-card">
+                    <div class="step-header">
+                        <div class="step-num">2</div>
+                        <span class="step-title">SSH vào server và pull code mới</span>
+                    </div>
+                    <div class="step-body">
+                        <div class="code-block">
+                            <div class="code-block-header"><span>Trên App Server (Ubuntu)</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+                            <pre>ssh user@your-server-ip
+cd /path/to/manager_video
+git pull origin main
+npm install --production   # Chỉ cần nếu package.json thay đổi</pre>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="step-card">
+                    <div class="step-header">
+                        <div class="step-num">3</div>
+                        <span class="step-title">Restart app để áp dụng thay đổi</span>
+                    </div>
+                    <div class="step-body">
+                        <div class="code-block">
+                            <div class="code-block-header"><span>Nếu dùng PM2 (khuyến nghị)</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+                            <pre>pm2 restart manager_video</pre>
+                        </div>
+                        <div class="code-block">
+                            <div class="code-block-header"><span>Nếu dùng systemd</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+                            <pre>sudo systemctl restart manager_video</pre>
+                        </div>
+                        <div class="alert-info">💡 Chưa cài PM2? Xem hướng dẫn <a href="#deploy" style="color:var(--accent)">Auto Deploy</a> bên dưới để thiết lập PM2.</div>
+                    </div>
+                </div>
+
+                <div class="step-card">
+                    <div class="step-header">
+                        <span class="step-title">⚡ Script deploy 1 lệnh (tùy chọn)</span>
+                    </div>
+                    <div class="step-body">
+                        <p class="text-muted" style="font-size:.88rem;margin-bottom:.75rem">Tạo file <code>deploy.sh</code> trên server để deploy chỉ bằng 1 lệnh từ máy local:</p>
+                        <div class="code-block">
+                            <div class="code-block-header"><span>deploy.sh — trên server</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+                            <pre>#!/bin/bash
+cd /path/to/manager_video
+git pull origin main
+npm install --production
+pm2 restart manager_video
+echo "✅ Deploy xong!"</pre>
+                        </div>
+                        <div class="code-block">
+                            <div class="code-block-header"><span>Chạy từ máy local</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+                            <pre>ssh user@server "bash /path/to/manager_video/deploy.sh"</pre>
+                        </div>
+                        <div class="alert-success">✅ Chỉ cần chạy 1 lệnh từ máy local là code được cập nhật lên server!</div>
+                    </div>
+                </div>
+            </div>
+
         </div>
     </div>
 

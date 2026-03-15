@@ -107,6 +107,35 @@ function initDatabase() {
 
 initDatabase();
 
+// ─── Auto Migrations ────────────────────────────────────────────────────────
+// Mỗi khi thêm cột mới vào schema, khai báo tại đây.
+// Hàm sẽ tự kiểm tra cột đã tồn tại chưa trước khi ALTER TABLE.
+function runMigrations() {
+  const migrations = [
+    // Format: { table, column, definition }
+    // Ví dụ thêm cột mới:
+    // { table: 'videos', column: 'quality', definition: "TEXT DEFAULT 'HD'" },
+    { table: 'videos', column: 'source_type', definition: "TEXT DEFAULT 'local'" },
+    { table: 'videos', column: 'source_url',  definition: 'TEXT' },
+    { table: 'videos', column: 'original_name', definition: 'TEXT' },
+  ];
+
+  for (const m of migrations) {
+    try {
+      const cols = db.prepare(`PRAGMA table_info(${m.table})`).all();
+      const exists = cols.some(c => c.name === m.column);
+      if (!exists) {
+        db.prepare(`ALTER TABLE ${m.table} ADD COLUMN ${m.column} ${m.definition}`).run();
+        console.log(`[Migration] Added column ${m.table}.${m.column}`);
+      }
+    } catch (e) {
+      console.error(`[Migration] Failed ${m.table}.${m.column}:`, e.message);
+    }
+  }
+}
+
+runMigrations();
+
 function addErrorLog(type, { video_id, video_title, server_id, server_label, message, stack } = {}) {
   try {
     db.prepare(
