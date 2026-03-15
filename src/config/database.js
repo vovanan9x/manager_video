@@ -117,6 +117,7 @@ function runMigrations() {
     { table: 'videos', column: 'source_type',   definition: "TEXT DEFAULT 'local'" },
     { table: 'videos', column: 'source_url',    definition: 'TEXT' },
     { table: 'videos', column: 'original_name', definition: 'TEXT' },
+    { table: 'videos', column: 'idah',          definition: 'TEXT' },
     // servers table — các cột thêm sau
     { table: 'servers', column: 'private_key',  definition: 'TEXT' },
     { table: 'servers', column: 'api_key',      definition: 'TEXT' },

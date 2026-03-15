@@ -1,4 +1,4 @@
-﻿<%- include('header') %>
+<%- include('header') %>
 
     <div class="page-header">
         <h1 class="page-title">✏️ Sửa Video</h1>
@@ -18,6 +18,11 @@
                 <div class="form-group">
                     <label class="form-label">Tiêu đề *</label>
                     <input type="text" name="title" class="form-control" value="<%= video.title %>" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">IDAH <span style="font-weight:400;text-transform:none;font-size:.72rem;color:var(--text-muted)">(tuỳ chọn)</span></label>
+                    <input type="text" name="idah" class="form-control" value="<%= video.idah || '' %>" placeholder="VD: SP001, EP12..." maxlength="100">
+                    <div class="form-hint">ID nội bộ để tra cứu video qua API</div>
                 </div>
                 <div class="form-group">
                     <label class="form-label">Thể loại</label>

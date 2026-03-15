@@ -256,7 +256,8 @@
 
             <div class="api-section-title">Videos</div>
             <a href="#list-videos">Danh sách video</a>
-            <a href="#get-link">Lấy link video</a>
+            <a href="#get-link">Lấy link theo ID</a>
+            <a href="#get-link-idah">Lấy link theo IDAH <span class="tag-new">NEW</span></a>
             <a href="#upload-file">Upload file</a>
             <a href="#remote-upload">Upload từ URL</a>
             <a href="#drive-upload">Upload từ Drive <span class="tag-new">NEW</span></a>
@@ -366,13 +367,13 @@
                 </div>
             </div>
 
-            <!-- GET LINK -->
+            <!-- GET LINK BY ID -->
             <div class="api-section" id="get-link">
                 <div class="endpoint-card">
                     <div class="endpoint-header">
                         <span class="method-badge method-get">GET</span>
                         <span class="endpoint-path">/api/videos/:id/link</span>
-                        <span class="endpoint-desc">Lấy link xem video</span>
+                        <span class="endpoint-desc">Lấy link theo ID</span>
                     </div>
                     <div class="endpoint-body">
                         <div class="code-block">
@@ -383,7 +384,70 @@
                         </div>
                         <div class="code-block">
                             <div class="code-block-header"><span>Response</span></div>
-                            <pre>{ "success": true, "video": { "id": 1, "title": "...", "link": "https://cdn.example.com/videos/folder/file.mp4" } }</pre>
+                            <pre>{
+  "success": true,
+  "video": {
+    "id": 1,
+    "title": "Phim hành động tập 1",
+    "idah": "SP001",
+    "status": "done",
+    "link": "https://cdn.example.com/videos/f1/abc.mp4",
+    "created_at": "2026-03-15 04:00:00"
+  }
+}</pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- GET LINK BY IDAH -->
+            <div class="api-section" id="get-link-idah">
+                <div class="endpoint-card">
+                    <div class="endpoint-header">
+                        <span class="method-badge method-get">GET</span>
+                        <span class="endpoint-path">/api/videos/by-idah/:idah/link</span>
+                        <span class="endpoint-desc">Lấy link theo IDAH <span class="tag-new">NEW</span></span>
+                    </div>
+                    <div class="endpoint-body">
+                        <div class="alert-info">
+                            📌 Tra cứu video bằng <strong>IDAH</strong> — ID nội bộ do người dùng tự đặt khi upload (VD: <code>SP001</code>, <code>EP12</code>). Rất hữu nh khi tích hợp với hệ thống bên ngoài không biết video <code>id</code> nội bộ.
+                        </div>
+                        <table class="param-table">
+                            <tr>
+                                <th>URL Param</th>
+                                <th>Kiểu</th>
+                                <th>Mô tả</th>
+                            </tr>
+                            <tr>
+                                <td class="param-name">:idah</td>
+                                <td class="param-type">string</td>
+                                <td>ID nội bộ của video (case-sensitive)</td>
+                            </tr>
+                        </table>
+                        <div class="code-block">
+                            <div class="code-block-header"><span>curl</span><button class="copy-btn"
+                                    onclick="copyCode(this)">Copy</button></div>
+                            <pre>curl "<%= settingDomain %>/api/videos/by-idah/SP001/link" \
+  -H "X-Api-Key: your_api_key"</pre>
+                        </div>
+                        <div class="code-block">
+                            <div class="code-block-header"><span>Response – tìm thấy</span></div>
+                            <pre>{
+  "success": true,
+  "video": {
+    "id": 12,
+    "title": "Spider-Man Ep 1",
+    "idah": "SP001",
+    "status": "done",
+    "link": "https://cdn.example.com/videos/f1/abc.mp4",
+    "remote_path": "f1/abc.mp4",
+    "created_at": "2026-03-15 04:00:00"
+  }
+}</pre>
+                        </div>
+                        <div class="code-block">
+                            <div class="code-block-header"><span>Response – không tìm thấy (404)</span></div>
+                            <pre>{ "error": "Không tìm thấy video với IDAH: SP001" }</pre>
                         </div>
                     </div>
                 </div>
@@ -428,6 +492,11 @@
                                 <td class="param-name">description</td>
                                 <td class="param-opt">tuỳ chọn</td>
                                 <td>Mô tả video</td>
+                            </tr>
+                            <tr>
+                                <td class="param-name">idah</td>
+                                <td class="param-opt">tuỳ chọn</td>
+                                <td>ID nội bộ để tra cứu video qua API (VD: <code>SP001</code>)</td>
                             </tr>
                         </table>
                         <div class="code-block">
@@ -487,6 +556,11 @@
                                 <td class="param-name">description</td>
                                 <td class="param-opt">tuỳ chọn</td>
                                 <td>Mô tả video</td>
+                            </tr>
+                            <tr>
+                                <td class="param-name">idah</td>
+                                <td class="param-opt">tuỳ chọn</td>
+                                <td>ID nội bộ để tra cứu video qua API</td>
                             </tr>
                         </table>
                         <div class="code-block">
@@ -555,6 +629,11 @@
                                 <td class="param-name">filename</td>
                                 <td class="param-opt">tuỳ chọn</td>
                                 <td>Tên file tùy chỉnh (không cần đuôi .mp4)</td>
+                            </tr>
+                            <tr>
+                                <td class="param-name">idah</td>
+                                <td class="param-opt">tuỳ chọn</td>
+                                <td>ID nội bộ để tra cứu video qua API</td>
                             </tr>
                         </table>
 

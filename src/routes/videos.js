@@ -71,7 +71,7 @@ router.get('/upload', requireAuth, (req, res) => {
 router.post('/upload/local', requireAuth, upload.single('video'), async (req, res) => {
     if (!req.file) return res.status(400).json({ error: 'Không có file được upload' });
 
-    const { title, description, genre, server_id, folder_id } = req.body;
+    const { title, description, genre, server_id, folder_id, idah } = req.body;
     if (!title || !server_id) {
         fs.unlinkSync(req.file.path);
         return res.status(400).json({ error: 'Thiếu tiêu đề hoặc server' });
@@ -89,9 +89,9 @@ router.post('/upload/local', requireAuth, upload.single('video'), async (req, re
     const remotePath = (folder ? 'f' + folder.id + '/' : '') + filename;
 
     const stmt = db.prepare(
-        'INSERT INTO videos (title, description, genre, filename, original_name, folder_id, server_id, uploaded_by, status, source_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        'INSERT INTO videos (title, description, genre, filename, original_name, folder_id, server_id, uploaded_by, status, source_type, idah) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     );
-    const result = stmt.run(title, description || '', genre || '', filename, req.file.originalname, folder_id || null, server_id, req.session.user.id, 'pending', 'local');
+    const result = stmt.run(title, description || '', genre || '', filename, req.file.originalname, folder_id || null, server_id, req.session.user.id, 'pending', 'local', idah || null);
     const videoId = result.lastInsertRowid;
 
     // Start upload in background
@@ -103,7 +103,7 @@ router.post('/upload/local', requireAuth, upload.single('video'), async (req, re
 
 // POST /videos/upload/remote - remote URL
 router.post('/upload/remote', requireAuth, async (req, res) => {
-    const { title, description, genre, server_id, folder_id, url } = req.body;
+    const { title, description, genre, server_id, folder_id, url, idah } = req.body;
     if (!title || !server_id || !url) {
         return res.status(400).json({ error: 'Thiếu tiêu đề, server hoặc URL' });
     }
@@ -116,9 +116,9 @@ router.post('/upload/remote', requireAuth, async (req, res) => {
     const remotePath = (folder ? 'f' + folder.id + '/' : '') + filename;
 
     const stmt = db.prepare(
-        'INSERT INTO videos (title, description, genre, filename, original_name, folder_id, server_id, uploaded_by, status, source_type, source_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        'INSERT INTO videos (title, description, genre, filename, original_name, folder_id, server_id, uploaded_by, status, source_type, source_url, idah) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     );
-    const result = stmt.run(title, description || '', genre || '', filename, path.basename(url), folder_id || null, server_id, req.session.user.id, 'pending', 'remote', url);
+    const result = stmt.run(title, description || '', genre || '', filename, path.basename(url), folder_id || null, server_id, req.session.user.id, 'pending', 'remote', url, idah || null);
     const videoId = result.lastInsertRowid;
 
     const controller = { cancelled: false };
@@ -152,14 +152,14 @@ router.get('/edit/:id', requireAuth, (req, res) => {
 
 // POST /videos/edit/:id
 router.post('/edit/:id', requireAuth, (req, res) => {
-    const { title, description, genre, folder_id } = req.body;
+    const { title, description, genre, folder_id, idah } = req.body;
     const video = db.prepare('SELECT * FROM videos WHERE id = ?').get(req.params.id);
     if (!video) return res.redirect('/videos');
     if (video.uploaded_by !== req.session.user.id && req.session.user.role !== 'administrator') {
         return res.status(403).end();
     }
-    db.prepare('UPDATE videos SET title = ?, description = ?, genre = ?, folder_id = ? WHERE id = ?')
-        .run(title, description || '', genre || '', folder_id || null, req.params.id);
+    db.prepare('UPDATE videos SET title = ?, description = ?, genre = ?, folder_id = ?, idah = ? WHERE id = ?')
+        .run(title, description || '', genre || '', folder_id || null, idah || null, req.params.id);
     res.redirect('/videos?success=updated');
 });
 

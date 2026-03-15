@@ -83,6 +83,42 @@ router.get('/videos/:id/link', requireSessionUser, (req, res) => {
             status: video.status,
             filename: video.filename,
             remote_path: video.remote_path,
+            idah: video.idah || null,
+            link,
+            created_at: video.created_at,
+        }
+    });
+});
+
+// GET /api/videos/by-idah/:idah/link - get video link by IDAH
+router.get('/videos/by-idah/:idah/link', requireSessionUser, (req, res) => {
+    const idah = req.params.idah;
+    const video = db.prepare(`
+        SELECT v.*, s.base_url, s.root_path, s.type as server_type
+        FROM videos v LEFT JOIN servers s ON v.server_id = s.id
+        WHERE v.idah = ?
+        ORDER BY v.created_at DESC
+        LIMIT 1
+    `).get(idah);
+
+    if (!video) return res.status(404).json({ error: 'Không tìm thấy video với IDAH: ' + idah });
+
+    let link = null;
+    if (video.remote_path && video.base_url) {
+        link = video.base_url.replace(/\/$/, '') + '/' + video.remote_path.replace(/^\//, '');
+    }
+
+    res.json({
+        success: true,
+        video: {
+            id: video.id,
+            title: video.title,
+            description: video.description,
+            genre: video.genre,
+            status: video.status,
+            filename: video.filename,
+            remote_path: video.remote_path,
+            idah: video.idah,
             link,
             created_at: video.created_at,
         }
@@ -267,7 +303,7 @@ function requireSessionUser(req, res, next) {
 }
 
 router.post('/videos/drive-upload', requireSessionUser, async (req, res) => {
-    const { drive_url, title, server_id, folder_id, description, filename: customName } = req.body;
+    const { drive_url, title, server_id, folder_id, description, filename: customName, idah } = req.body;
 
     if (!drive_url) return res.status(400).json({ error: 'drive_url is required' });
     if (!title) return res.status(400).json({ error: 'title is required' });
@@ -280,7 +316,7 @@ router.post('/videos/drive-upload', requireSessionUser, async (req, res) => {
     if (!server) return res.status(400).json({ error: 'Server not found' });
 
     const folder = folder_id ? db.prepare('SELECT * FROM folders WHERE id = ?').get(folder_id) : null;
-    const ext = '.mp4'; // Drive files are usually mp4; we'll detect via content-type later
+    const ext = '.mp4';
     const baseName = customName ? customName.replace(/[^a-zA-Z0-9_-]/g, '_') : crypto.randomUUID();
     const filename = baseName + ext;
     const remotePath = (folder ? 'f' + folder.id + '/' : '') + filename;
@@ -288,8 +324,8 @@ router.post('/videos/drive-upload', requireSessionUser, async (req, res) => {
     const userId = req.session?.user?.id || 1;
 
     const result = db.prepare(
-        'INSERT INTO videos (title, description, filename, original_name, folder_id, server_id, uploaded_by, status, source_type, source_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-    ).run(title, description || '', filename, `drive_${fileId}`, folder_id || null, server_id, userId, 'pending', 'remote', sourceUrl);
+        'INSERT INTO videos (title, description, filename, original_name, folder_id, server_id, uploaded_by, status, source_type, source_url, idah) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    ).run(title, description || '', filename, `drive_${fileId}`, folder_id || null, server_id, userId, 'pending', 'remote', sourceUrl, idah || null);
 
     const videoId = result.lastInsertRowid;
 
