@@ -262,8 +262,16 @@ async function getDriveDownloadStream(fileId) {
                 return { stream: resp2.data, size };
             }
 
-            // Still HTML — this URL didn't work, try next
-            resp2.data.destroy();
+            // vẫn là HTML — lấy nội dung để debug và phát hiện quota error
+            const chunks2 = [];
+            for await (const chunk of resp2.data) chunks2.push(chunk);
+            const html2 = Buffer.concat(chunks2).toString('utf8').substring(0, 500);
+            console.warn(`[Drive] URL ${url} vẫn trả HTML sau confirm. Preview: ${html2}`);
+
+            const isQuotaError = html2.includes('quota') || html2.includes('too many') || html2.includes('cannot') || html2.includes('virus scan');
+            if (isQuotaError) {
+                throw new Error('Google Drive: File đã đạt giới hạn lượt tải trong ngày. Hãy thử lại sau hoặc dùng link Drive khác.');
+            }
         } catch (e) {
             // Try next URL
             if (url === urls[urls.length - 1]) throw e;
