@@ -8,6 +8,15 @@
     <a href="/videos/upload" class="btn btn-primary">⬆️ Upload mới</a>
 </div>
 
+<!-- Bulk action toolbar (chỉ admin) -->
+<% if(user.role==='administrator'){ %>
+<div id="bulkToolbar" style="display:none;align-items:center;gap:.75rem;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);border-radius:var(--radius);padding:.6rem 1rem;margin-bottom:.75rem">
+    <span id="bulkCount" style="font-size:.85rem;color:var(--text-secondary);font-weight:500">0 đã chọn</span>
+    <button class="btn btn-danger btn-sm" onclick="bulkDelete()">🗑️ Xóa đã chọn</button>
+    <button class="btn btn-secondary btn-sm" onclick="clearSelection()">✕ Bỏ chọn</button>
+</div>
+<% } %>
+
 <!-- Filter Bar -->
 <div class="filter-bar mb-2" style="margin-bottom:1rem">
     <select id="filterServer" class="form-control form-control-sm" onchange="applyFilters()">
@@ -52,6 +61,9 @@
         <table class="table">
             <thead>
                 <tr>
+                    <% if(user.role==='administrator'){ %>
+                    <th style="width:36px"><input type="checkbox" id="selectAll" onchange="toggleAllCheck(this)" title="Chọn tất cả"></th>
+                    <% } %>
                     <th>Tiêu đề</th>
                     <th>Thời gian đăng</th>
                     <th>Server / Thư mục</th>
@@ -64,6 +76,9 @@
             <tbody>
                 <% videos.forEach(function(v){ %>
                 <tr id="video-row-<%= v.id %>">
+                    <% if(user.role==='administrator'){ %>
+                    <td style="width:36px"><input type="checkbox" class="video-check" value="<%= v.id %>" onchange="updateBulkToolbar()"></td>
+                    <% } %>
                     <td>
                         <div style="font-weight:500;color:var(--text-primary)"><%= v.title %></div>
                         <div class="text-muted text-xs" style="margin-top:2px"><%= v.original_name||v.filename %></div>
@@ -110,6 +125,27 @@
     </div>
 </div>
 
+<!-- Pagination -->
+<% if(pagination.totalPages > 1){ %>
+<div style="display:flex;align-items:center;justify-content:space-between;margin-top:1rem;flex-wrap:wrap;gap:.5rem">
+    <div style="font-size:.82rem;color:var(--text-muted)">
+        Trang <%= pagination.page %> / <%= pagination.totalPages %> &nbsp;·&nbsp; <%= pagination.total %> video
+    </div>
+    <div style="display:flex;gap:.35rem;flex-wrap:wrap">
+        <% const qp = Object.assign({}, filters); %>
+        <% if(pagination.page > 1){ qp.page = pagination.page - 1; %>
+            <a href="?<%= new URLSearchParams(qp).toString() %>" class="btn btn-secondary btn-sm">← Trước</a>
+        <% } %>
+        <% for(let p = Math.max(1, pagination.page-2); p <= Math.min(pagination.totalPages, pagination.page+2); p++){ qp.page = p; %>
+            <a href="?<%= new URLSearchParams(qp).toString() %>" class="btn btn-sm <%= p===pagination.page ? 'btn-primary' : 'btn-secondary' %>"><%= p %></a>
+        <% } %>
+        <% if(pagination.page < pagination.totalPages){ qp.page = pagination.page + 1; %>
+            <a href="?<%= new URLSearchParams(qp).toString() %>" class="btn btn-secondary btn-sm">Sau →</a>
+        <% } %>
+    </div>
+</div>
+<% } %>
+
 <!-- Delete Modal -->
 <div id="deleteModal" class="modal-overlay" style="display:none">
     <div class="modal">
@@ -129,6 +165,58 @@
 </div>
 
 <script>
+    // ── Bulk select ──────────────────────────────────────────────────────────
+    function getChecked() { return [...document.querySelectorAll('.video-check:checked')].map(c => +c.value); }
+    function updateBulkToolbar() {
+        const ids = getChecked();
+        const toolbar = document.getElementById('bulkToolbar');
+        if (!toolbar) return;
+        if (ids.length > 0) {
+            toolbar.style.display = 'flex';
+            document.getElementById('bulkCount').textContent = ids.length + ' đã chọn';
+        } else {
+            toolbar.style.display = 'none';
+        }
+        const all = document.getElementById('selectAll');
+        const checks = document.querySelectorAll('.video-check');
+        if (all) all.indeterminate = ids.length > 0 && ids.length < checks.length;
+        if (all) all.checked = ids.length === checks.length && checks.length > 0;
+    }
+    function toggleAllCheck(cb) {
+        document.querySelectorAll('.video-check').forEach(c => c.checked = cb.checked);
+        updateBulkToolbar();
+    }
+    function clearSelection() {
+        document.querySelectorAll('.video-check').forEach(c => c.checked = false);
+        const sa = document.getElementById('selectAll'); if(sa) sa.checked = false;
+        updateBulkToolbar();
+    }
+    async function bulkDelete() {
+        const ids = getChecked();
+        if (!ids.length) return;
+        const btn = document.querySelector('#bulkToolbar .btn-danger');
+        if (btn.dataset.confirm !== '1') {
+            btn.dataset.confirm = '1';
+            btn.textContent = `✓ Xác nhận xóa ${ids.length} video?`;
+            setTimeout(() => { btn.dataset.confirm = ''; btn.textContent = '🗑️ Xóa đã chọn'; }, 4000);
+            return;
+        }
+        btn.disabled = true; btn.textContent = '⏳ Đang xóa...';
+        let deleted = 0;
+        for (const id of ids) {
+            const r = await fetch('/videos/delete/' + id, { method: 'POST' });
+            const d = await r.json();
+            if (d.success) {
+                const row = document.getElementById('video-row-' + id);
+                if (row) { row.style.opacity = '.3'; row.style.transition = 'opacity .3s'; setTimeout(() => row.remove(), 300); }
+                deleted++;
+            }
+        }
+        btn.disabled = false;
+        clearSelection();
+        if (deleted > 0) setTimeout(() => location.reload(), 400);
+    }
+
     // SSE for active uploads
     <% videos.filter(v=>v.status==='uploading'||v.status==='pending').forEach(v=>{ %>
     (function(){

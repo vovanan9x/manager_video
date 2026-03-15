@@ -16,8 +16,11 @@ router.get('/', requireAuth, (req, res) => {
     const folders = db.prepare('SELECT id, name, path FROM folders ORDER BY path').all();
     const users   = db.prepare('SELECT id, username FROM users ORDER BY username').all();
 
-    let query = `SELECT v.*, u.username as uploader_name, s.name as server_name, f.name as folder_name
-    FROM videos v
+    const PAGE_SIZE = 15;
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const offset = (page - 1) * PAGE_SIZE;
+
+    let baseQuery = `FROM videos v
     LEFT JOIN users u ON v.uploaded_by = u.id
     LEFT JOIN servers s ON v.server_id = s.id
     LEFT JOIN folders f ON v.folder_id = f.id`;
@@ -41,14 +44,20 @@ router.get('/', requireAuth, (req, res) => {
         params.push(req.query.user_id);
     }
 
-    if (conditions.length) query += ' WHERE ' + conditions.join(' AND ');
-    query += ' ORDER BY v.created_at DESC';
+    const whereClause = conditions.length ? ' WHERE ' + conditions.join(' AND ') : '';
 
-    const videos = db.prepare(query).all(...params);
+    const total = db.prepare(`SELECT COUNT(*) as count ${baseQuery}${whereClause}`).get(...params).count;
+    const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+    const videos = db.prepare(
+        `SELECT v.*, u.username as uploader_name, s.name as server_name, f.name as folder_name
+        ${baseQuery}${whereClause} ORDER BY v.created_at DESC LIMIT ? OFFSET ?`
+    ).all(...params, PAGE_SIZE, offset);
 
     res.render('videos', {
         user, activePage: 'videos', videos, servers, folders, users,
         filters: req.query,
+        pagination: { page, totalPages, total, pageSize: PAGE_SIZE },
     });
 });
 

@@ -29,6 +29,7 @@ function renderTree(nodes, serverId, isAdmin) {
         html += `<span class="folder-icon">📁</span>`;
         html += `<span class="folder-name">${safeName}</span>`;
         html += `<span class="folder-path-chip" title="${safePath}">${safePath}</span>`;
+        html += `<span style="font-size:.7rem;color:var(--text-muted);background:var(--bg-secondary);border:1px solid var(--border);border-radius:4px;padding:1px 6px;font-family:monospace;margin-left:4px" title="Folder ID">ID:${node.id}</span>`;
         html += `<div class="folder-actions">`;
         // ➕ Tạo thư mục con — mọi user
         html += `<button class="action-btn success" onclick="openCreateModal(${node.id},'${jsPath}',${sid})" title="Tạo thư mục con">➕ <span>Tạo con</span></button>`;
