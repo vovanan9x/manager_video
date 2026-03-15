@@ -224,11 +224,19 @@
 
         xhr.addEventListener('load',function(){
             document.getElementById('uploadLocalBtn').disabled=false;
+            if(xhr.status===413){
+                updateProgress(0,'❌ File quá lớn — Nginx từ chối','Liên hệ admin để tăng giới hạn upload (client_max_body_size)');
+                return;
+            }
+            if(xhr.status===0||xhr.status>=500){
+                updateProgress(0,'❌ Lỗi server ('+xhr.status+')','Thử lại hoặc liên hệ admin');
+                return;
+            }
             try{
                 const data=JSON.parse(xhr.responseText);
                 if(data.success) startSseForVideo(data.videoId);
                 else updateProgress(0,'❌ '+(data.error||'Lỗi'),'');
-            }catch(e){ updateProgress(0,'❌ Lỗi phản hồi server',''); }
+            }catch(e){ updateProgress(0,'❌ Lỗi phản hồi server ('+xhr.status+')',''); }
         });
 
         xhr.addEventListener('error',function(){
