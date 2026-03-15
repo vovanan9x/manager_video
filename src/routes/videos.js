@@ -147,6 +147,33 @@ router.post('/stop/:id', requireAuth, (req, res) => {
     res.json({ success: true, stopped });
 });
 
+// ── Queue Pause / Resume (admin only) ────────────────────────────────────────
+// QUAN TRỌNG: Phải khai báo TRƯỚC route /:id/retry để tránh Express match
+// 'queue' như một :id parameter.
+function requireAdmin(req, res, next) {
+    if (req.session && req.session.user && req.session.user.role === 'administrator') return next();
+    return res.status(403).json({ error: 'Chỉ admin mới có quyền thực hiện hành động này' });
+}
+
+// GET /videos/queue/status
+router.get('/queue/status', requireAuth, requireAdmin, (req, res) => {
+    const qs = getQueueStatus();
+    res.json({ success: true, paused: isQueuePaused(), running: qs.running, waiting: qs.waiting.length });
+});
+
+// POST /videos/queue/pause
+router.post('/queue/pause', requireAuth, requireAdmin, (req, res) => {
+    pauseQueue();
+    res.json({ success: true, paused: true });
+});
+
+// POST /videos/queue/resume
+router.post('/queue/resume', requireAuth, requireAdmin, (req, res) => {
+    resumeQueue();
+    res.json({ success: true, paused: false });
+});
+// ───────────────────────────────────────────────────────────────────────────
+
 // POST /videos/:id/retry — thử lại upload cho video lỗi / bị dừng
 router.post('/:id/retry', requireAuth, async (req, res) => {
     const video = db.prepare('SELECT v.*, s.* FROM videos v LEFT JOIN servers s ON v.server_id = s.id WHERE v.id = ?').get(req.params.id);
@@ -290,31 +317,6 @@ router.post('/:id/retry', requireAuth, async (req, res) => {
 
     return res.status(400).json({ error: `Không hỗ trợ retry cho loại nguồn: ${sourceType}` });
 });
-
-// ── Queue Pause / Resume (admin only) ────────────────────────────────────────
-function requireAdmin(req, res, next) {
-    if (req.session && req.session.user && req.session.user.role === 'administrator') return next();
-    return res.status(403).json({ error: 'Chỉ admin mới có quyền thực hiện hành động này' });
-}
-
-// GET /videos/queue/status
-router.get('/queue/status', requireAuth, requireAdmin, (req, res) => {
-    const qs = getQueueStatus();
-    res.json({ success: true, paused: isQueuePaused(), running: qs.running, waiting: qs.waiting.length });
-});
-
-// POST /videos/queue/pause
-router.post('/queue/pause', requireAuth, requireAdmin, (req, res) => {
-    pauseQueue();
-    res.json({ success: true, paused: true });
-});
-
-// POST /videos/queue/resume
-router.post('/queue/resume', requireAuth, requireAdmin, (req, res) => {
-    resumeQueue();
-    res.json({ success: true, paused: false });
-});
-// ─────────────────────────────────────────────────────────────────────────────
 
 // GET /videos/edit/:id
 router.get('/edit/:id', requireAuth, (req, res) => {
