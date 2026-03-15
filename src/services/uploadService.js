@@ -10,7 +10,7 @@ const { addErrorLog } = require('../config/database');
 // Tối đa MAX_CONCURRENT upload chạy song song.
 // Các upload vượt quá giới hạn sẽ ở trạng thái "pending" và tự động khởi chạy
 // khi có slot trống.
-const MAX_CONCURRENT = 2;
+const MAX_CONCURRENT = 1;
 let runningCount = 0;
 const uploadQueue = []; // [{ fn: async function, videoId }]
 
