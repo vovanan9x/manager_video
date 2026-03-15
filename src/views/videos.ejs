@@ -5,7 +5,16 @@
     <div>
         <h1 class="page-title">🎥 Quản lí Video</h1>
     </div>
-    <a href="/videos/upload" class="btn btn-primary">⬆️ Upload mới</a>
+    <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
+        <% if(user.role==='administrator'){ %>
+        <div id="queueWidget" style="display:flex;align-items:center;gap:.5rem;font-size:.82rem;padding:.35rem .75rem;border-radius:var(--radius);border:1px solid var(--border);background:var(--surface)">
+            <span id="queueDot" style="width:8px;height:8px;border-radius:50%;background:var(--green,#22c55e);display:inline-block;flex-shrink:0"></span>
+            <span id="queueLabel" style="color:var(--text-secondary)">Queue: đang tải...</span>
+            <button id="queueToggleBtn" class="btn btn-xs btn-secondary" onclick="toggleQueue()" style="margin-left:.25rem">...</button>
+        </div>
+        <% } %>
+        <a href="/videos/upload" class="btn btn-primary">⬆️ Upload mới</a>
+    </div>
 </div>
 
 <!-- Bulk action toolbar (chỉ admin) -->
@@ -106,6 +115,9 @@
                             <% if(v.status==='uploading'||v.status==='pending'){ %>
                                 <button class="btn btn-xs btn-warning" onclick="stopVideo(<%= v.id %>)" title="Dừng upload">⏹</button>
                             <% } %>
+                            <% if(v.status==='error'||v.status==='stopped'){ %>
+                                <button class="btn btn-xs btn-warning" id="retry-btn-<%= v.id %>" onclick="retryVideo(<%= v.id %>)" title="Thử lại upload">🔄</button>
+                            <% } %>
                             <a href="/videos/edit/<%= v.id %>" class="btn btn-xs btn-secondary" title="Sửa">✏️</a>
                             <% if(v.status==='done'&&v.remote_path){ %>
                                 <button class="btn btn-xs btn-secondary" onclick="watchVideo(<%= v.id %>)" title="Xem">▶️</button>
@@ -164,6 +176,49 @@
 </div>
 
 <script>
+    // ── Queue Widget (admin only) ─────────────────────────────────────────────
+    let _queuePaused = false;
+    function updateQueueWidget(paused, running, waiting) {
+        _queuePaused = paused;
+        const dot   = document.getElementById('queueDot');
+        const label = document.getElementById('queueLabel');
+        const btn   = document.getElementById('queueToggleBtn');
+        if (!dot) return;
+        if (paused) {
+            dot.style.background = '#ef4444';
+            label.textContent = `🔴 Queue dừng · ${waiting} chờ`;
+            btn.textContent   = '▶️ Tiếp tục';
+            btn.className     = 'btn btn-xs btn-success';
+        } else {
+            dot.style.background = '#22c55e';
+            label.textContent = `🟢 Queue chạy · ${running} đang up · ${waiting} chờ`;
+            btn.textContent   = '⏸ Dừng';
+            btn.className     = 'btn btn-xs btn-warning';
+        }
+    }
+    async function fetchQueueStatus() {
+        try {
+            const r = await fetch('/videos/queue/status');
+            const d = await r.json();
+            if (d.success) updateQueueWidget(d.paused, d.running, d.waiting);
+        } catch(_) {}
+    }
+    async function toggleQueue() {
+        const btn = document.getElementById('queueToggleBtn');
+        if (btn) { btn.disabled = true; btn.textContent = '⏳'; }
+        try {
+            const url = _queuePaused ? '/videos/queue/resume' : '/videos/queue/pause';
+            const r = await fetch(url, { method: 'POST' });
+            const d = await r.json();
+            if (d.success) await fetchQueueStatus();
+        } catch(_) {}
+        if (btn) btn.disabled = false;
+    }
+    // Fetch khi load và mỗi 5s nếu có upload đang chạy
+    fetchQueueStatus();
+    setInterval(fetchQueueStatus, 5000);
+    // ─────────────────────────────────────────────────────────────────────────
+
     // ── Bulk select ──────────────────────────────────────────────────────────
     function getChecked() { return [...document.querySelectorAll('.video-check:checked')].map(c => +c.value); }
     function updateBulkToolbar() {
@@ -249,6 +304,30 @@
         const res=await fetch('/videos/stop/'+id,{method:'POST'});
         const data=await res.json();
         if(data.success) location.reload();
+    }
+
+    async function retryVideo(id) {
+        const btn = document.getElementById('retry-btn-' + id);
+        if (!btn) return;
+        const orig = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = '⏳';
+        try {
+            const res = await fetch('/videos/' + id + '/retry', { method: 'POST' });
+            const data = await res.json();
+            if (data.success) {
+                btn.textContent = '✅';
+                setTimeout(() => location.reload(), 800);
+            } else {
+                btn.disabled = false;
+                btn.textContent = orig;
+                alert('❌ ' + (data.error || 'Không thể thử lại'));
+            }
+        } catch (e) {
+            btn.disabled = false;
+            btn.textContent = orig;
+            alert('❌ Lỗi kết nối khi thử lại');
+        }
     }
 
     let _delId=null;

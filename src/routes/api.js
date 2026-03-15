@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const path = require('path');
 const db = require('../config/database');
+const { addErrorLog } = require('../config/database');
 const upload = require('../middleware/upload');
 const { uploadToServer, fetchRemoteVideo, stopUpload, emitProgress, enqueueUpload } = require('../services/uploadService');
 const { deleteFromServer, deleteFromSftp } = require('../services/serverService');
@@ -359,6 +360,15 @@ router.post('/videos/drive-upload', requireSessionUser, async (req, res) => {
 
         } catch (err) {
             console.error('[Drive Upload Error]', err.message);
+            const videoRow = db.prepare('SELECT v.title, v.server_id, s.name as server_name FROM videos v LEFT JOIN servers s ON v.server_id = s.id WHERE v.id = ?').get(videoId);
+            addErrorLog('drive_upload', {
+                video_id: videoId,
+                video_title: videoRow ? videoRow.title : null,
+                server_id: videoRow ? videoRow.server_id : null,
+                server_label: videoRow ? videoRow.server_name : null,
+                message: err.message,
+                stack: err.stack,
+            });
             db.prepare("UPDATE videos SET status='error' WHERE id=?").run(videoId);
             emitProgress(videoId, 0, 'error');
         }

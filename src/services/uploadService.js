@@ -12,9 +12,11 @@ const { addErrorLog } = require('../config/database');
 // khi có slot trống.
 const MAX_CONCURRENT = 1;
 let runningCount = 0;
+let queuePaused = false;  // khi true: không start job mới, job đang chạy vẫn hoàn thành
 const uploadQueue = []; // [{ fn: async function, videoId }]
 
 function tryFlushQueue() {
+    if (queuePaused) return; // << dừng flush khi queue bị pause
     while (runningCount < MAX_CONCURRENT && uploadQueue.length > 0) {
         const { fn, videoId } = uploadQueue.shift();
         runningCount++;
@@ -28,7 +30,7 @@ function tryFlushQueue() {
 }
 
 function enqueueUpload(videoId, fn) {
-    if (runningCount < MAX_CONCURRENT) {
+    if (!queuePaused && runningCount < MAX_CONCURRENT) {
         runningCount++;
         console.log(`[Queue] Bắt đầu upload video #${videoId} ngay (đang chạy: ${runningCount}/${MAX_CONCURRENT})`);
         fn().finally(() => {
@@ -37,10 +39,26 @@ function enqueueUpload(videoId, fn) {
             tryFlushQueue();
         });
     } else {
-        console.log(`[Queue] Video #${videoId} xếp hàng chờ (slot đầy: ${runningCount}/${MAX_CONCURRENT}, vị trí: ${uploadQueue.length + 1})`);
+        const reason = queuePaused ? 'queue đang dừng' : `slot đầy: ${runningCount}/${MAX_CONCURRENT}`;
+        console.log(`[Queue] Video #${videoId} xếp hàng chờ (${reason}, vị trí: ${uploadQueue.length + 1})`);
         uploadQueue.push({ fn, videoId });
         // Giữ nguyên status "pending" trong DB — không cần thay đổi
     }
+}
+
+function pauseQueue() {
+    queuePaused = true;
+    console.log('[Queue] ⏸ Hàng chờ đã được dừng — không có job mới nào sẽ bắt đầu');
+}
+
+function resumeQueue() {
+    queuePaused = false;
+    console.log('[Queue] ▶️ Hàng chờ tiếp tục — đang flush...');
+    tryFlushQueue();
+}
+
+function isQueuePaused() {
+    return queuePaused;
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -365,4 +383,7 @@ module.exports = {
     getQueueStatus,
     enqueueUpload,
     _doUploadToServer,
+    pauseQueue,
+    resumeQueue,
+    isQueuePaused,
 };

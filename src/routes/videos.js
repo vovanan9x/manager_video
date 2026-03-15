@@ -6,7 +6,7 @@ const crypto = require('crypto');
 const db = require('../config/database');
 const { requireAuth } = require('../middleware/auth');
 const upload = require('../middleware/upload');
-const { uploadToServer, fetchRemoteVideo, stopUpload, addSseClient, removeSseClient } = require('../services/uploadService');
+const { uploadToServer, fetchRemoteVideo, stopUpload, addSseClient, removeSseClient, enqueueUpload, emitProgress, _doUploadToServer, pauseQueue, resumeQueue, isQueuePaused, getQueueStatus } = require('../services/uploadService');
 const { deleteFromServer, deleteFromSftp } = require('../services/serverService');
 
 // GET /videos - list
@@ -146,6 +146,175 @@ router.post('/stop/:id', requireAuth, (req, res) => {
     const stopped = stopUpload(parseInt(req.params.id));
     res.json({ success: true, stopped });
 });
+
+// POST /videos/:id/retry — thử lại upload cho video lỗi / bị dừng
+router.post('/:id/retry', requireAuth, async (req, res) => {
+    const video = db.prepare('SELECT v.*, s.* FROM videos v LEFT JOIN servers s ON v.server_id = s.id WHERE v.id = ?').get(req.params.id);
+    if (!video) return res.status(404).json({ error: 'Video không tồn tại' });
+
+    // Chỉ cho phép owner hoặc admin retry
+    if (video.uploaded_by !== req.session.user.id && req.session.user.role !== 'administrator') {
+        return res.status(403).json({ error: 'Không có quyền' });
+    }
+
+    // Chỉ retry khi đang ở trạng thái lỗi hoặc bị dừng
+    if (video.status !== 'error' && video.status !== 'stopped') {
+        return res.status(400).json({ error: 'Chỉ có thể thử lại video có trạng thái lỗi hoặc bị dừng' });
+    }
+
+    if (!video.server_id) {
+        return res.status(400).json({ error: 'Video không có server được gán' });
+    }
+
+    const server = db.prepare('SELECT * FROM servers WHERE id = ?').get(video.server_id);
+    if (!server) return res.status(400).json({ error: 'Server không tồn tại' });
+
+    const remotePath = video.remote_path || ((video.folder_id ? 'f' + video.folder_id + '/' : '') + video.filename);
+
+    const sourceType = video.source_type;
+
+    if (sourceType === 'local') {
+        // File tạm đã bị xóa sau khi upload — không thể retry local
+        return res.status(400).json({ error: 'Không thể thử lại upload từ file gốc vì file tạm đã bị xóa. Vui lòng upload lại file.' });
+    }
+
+    if (sourceType === 'remote') {
+        if (!video.source_url) return res.status(400).json({ error: 'Không tìm thấy URL nguồn để thử lại' });
+        // Reset status
+        db.prepare("UPDATE videos SET status='pending', upload_progress=0 WHERE id=?").run(video.id);
+        emitProgress(video.id, 0, 'pending');
+        fetchRemoteVideo(video.id, video.source_url, server, remotePath);
+        return res.json({ success: true, message: 'Đã thêm vào hàng chờ upload lại' });
+    }
+
+    if (sourceType === 'drive' || (video.source_url && video.source_url.includes('drive.google.com'))) {
+        if (!video.source_url) return res.status(400).json({ error: 'Không tìm thấy Drive URL để thử lại' });
+
+        // Trích fileId từ source_url
+        const fileIdMatch = video.source_url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+        if (!fileIdMatch) return res.status(400).json({ error: 'Không thể lấy file ID từ Drive URL' });
+        const fileId = fileIdMatch[1];
+
+        // Reset status
+        db.prepare("UPDATE videos SET status='pending', upload_progress=0 WHERE id=?").run(video.id);
+        emitProgress(video.id, 0, 'pending');
+
+        // Re-run Drive download + upload flow
+        enqueueUpload(video.id, async () => {
+            const { addErrorLog } = require('../config/database');
+            try {
+                db.prepare("UPDATE videos SET status='uploading', upload_progress=0 WHERE id=?").run(video.id);
+                emitProgress(video.id, 0, 'uploading');
+
+                // getDriveDownloadStream không được export, tự implement lại inline
+                const axios = require('axios');
+                const os = require('os');
+                const urls = [
+                    `https://drive.usercontent.google.com/download?id=${fileId}&export=download&authuser=0&confirm=t`,
+                    `https://drive.google.com/uc?export=download&id=${fileId}&confirm=t`,
+                ];
+                let driveStream = null, driveSize = 0;
+                for (const url of urls) {
+                    try {
+                        const resp = await axios.get(url, {
+                            responseType: 'stream', maxRedirects: 10,
+                            headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': '*/*' },
+                            timeout: 60000, validateStatus: s => s < 500,
+                        });
+                        const ct = resp.headers['content-type'] || '';
+                        if (!ct.includes('text/html')) {
+                            driveStream = resp.data;
+                            driveSize = parseInt(resp.headers['content-length'] || '0', 10);
+                            break;
+                        }
+                        const chunks = [];
+                        for await (const chunk of resp.data) chunks.push(chunk);
+                        const html = Buffer.concat(chunks).toString('utf8');
+                        const cookies = [].concat(resp.headers['set-cookie'] || []);
+                        const cookieStr = cookies.map(c => c.split(';')[0]).join('; ');
+                        const confirmMatch = html.match(/name="confirm"\s+value="([^"]+)"/i) || html.match(/"confirm"\s*:\s*"([^"]+)"/i);
+                        const uuidMatch = html.match(/name="uuid"\s+value="([^"]+)"/i);
+                        let confirmedUrl = `https://drive.usercontent.google.com/download?id=${fileId}&export=download&authuser=0&confirm=t`;
+                        if (confirmMatch) confirmedUrl += `&confirm=${confirmMatch[1]}`;
+                        if (uuidMatch) confirmedUrl += `&uuid=${uuidMatch[1]}`;
+                        const resp2 = await axios.get(confirmedUrl, {
+                            responseType: 'stream', maxRedirects: 10,
+                            headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': '*/*', ...(cookieStr ? { 'Cookie': cookieStr } : {}) },
+                            timeout: 60000,
+                        });
+                        if (!(resp2.headers['content-type'] || '').includes('text/html')) {
+                            driveStream = resp2.data;
+                            driveSize = parseInt(resp2.headers['content-length'] || '0', 10);
+                            break;
+                        }
+                        resp2.data.destroy();
+                    } catch (e) {
+                        if (url === urls[urls.length - 1]) throw e;
+                    }
+                }
+                if (!driveStream) throw new Error('Không thể tải file từ Google Drive');
+
+                const tmpPath = path.join(os.tmpdir(), video.filename);
+                const writeStream = fs.createWriteStream(tmpPath);
+                let downloaded = 0;
+                driveStream.on('data', chunk => {
+                    downloaded += chunk.length;
+                    if (driveSize > 0) emitProgress(video.id, Math.floor(downloaded / driveSize * 50), 'uploading');
+                });
+                await new Promise((resolve, reject) => {
+                    driveStream.pipe(writeStream);
+                    writeStream.on('finish', resolve);
+                    writeStream.on('error', reject);
+                    driveStream.on('error', reject);
+                });
+
+                await _doUploadToServer(video.id, tmpPath, server, remotePath);
+
+            } catch (err) {
+                console.error('[Retry Drive Error]', err.message);
+                addErrorLog('drive_upload', {
+                    video_id: video.id,
+                    video_title: video.title,
+                    server_id: server.id,
+                    server_label: server.name,
+                    message: err.message,
+                    stack: err.stack,
+                });
+                db.prepare("UPDATE videos SET status='error' WHERE id=?").run(video.id);
+                emitProgress(video.id, 0, 'error');
+            }
+        });
+
+        return res.json({ success: true, message: 'Đã thêm vào hàng chờ tải lại từ Drive' });
+    }
+
+    return res.status(400).json({ error: `Không hỗ trợ retry cho loại nguồn: ${sourceType}` });
+});
+
+// ── Queue Pause / Resume (admin only) ────────────────────────────────────────
+function requireAdmin(req, res, next) {
+    if (req.session && req.session.user && req.session.user.role === 'administrator') return next();
+    return res.status(403).json({ error: 'Chỉ admin mới có quyền thực hiện hành động này' });
+}
+
+// GET /videos/queue/status
+router.get('/queue/status', requireAuth, requireAdmin, (req, res) => {
+    const qs = getQueueStatus();
+    res.json({ success: true, paused: isQueuePaused(), running: qs.running, waiting: qs.waiting.length });
+});
+
+// POST /videos/queue/pause
+router.post('/queue/pause', requireAuth, requireAdmin, (req, res) => {
+    pauseQueue();
+    res.json({ success: true, paused: true });
+});
+
+// POST /videos/queue/resume
+router.post('/queue/resume', requireAuth, requireAdmin, (req, res) => {
+    resumeQueue();
+    res.json({ success: true, paused: false });
+});
+// ─────────────────────────────────────────────────────────────────────────────
 
 // GET /videos/edit/:id
 router.get('/edit/:id', requireAuth, (req, res) => {
