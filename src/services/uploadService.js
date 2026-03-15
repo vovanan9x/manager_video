@@ -263,6 +263,96 @@ async function _doFetchRemoteVideo(videoId, url, server, remotePath, controller)
     controller.abort = () => abortController.abort();
 
     try {
+        // ── Auto-detect Google Drive URL → dùng Drive download logic ─────────
+        const isDriveUrl = url.includes('drive.google.com') || url.includes('drive.usercontent.google.com');
+        if (isDriveUrl) {
+            // Extract fileId từ Drive URL
+            let fileId = null;
+            const m1 = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+            const m2 = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+            if (m1) fileId = m1[1];
+            else if (m2) fileId = m2[1];
+
+            if (!fileId) throw new Error('Không thể trích file ID từ Google Drive URL: ' + url);
+
+            // Lấy stream qua Drive download flow (xử lý confirm token, cookie)
+            const driveUrls = [
+                `https://drive.usercontent.google.com/download?id=${fileId}&export=download&authuser=0&confirm=t`,
+                `https://drive.google.com/uc?export=download&id=${fileId}&confirm=t`,
+            ];
+            let driveStream = null, driveSize = 0;
+            for (const du of driveUrls) {
+                try {
+                    const resp = await axios.get(du, {
+                        responseType: 'stream', maxRedirects: 10,
+                        headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': '*/*' },
+                        timeout: 60000, validateStatus: s => s < 500,
+                    });
+                    const ct = resp.headers['content-type'] || '';
+                    if (!ct.includes('text/html')) {
+                        driveStream = resp.data;
+                        driveSize = parseInt(resp.headers['content-length'] || '0', 10);
+                        break;
+                    }
+                    const chunks = []; for await (const c of resp.data) chunks.push(c);
+                    const html = Buffer.concat(chunks).toString('utf8');
+                    const cookies = [].concat(resp.headers['set-cookie'] || []).map(c => c.split(';')[0]).join('; ');
+                    const confirmMatch = html.match(/name="confirm"\s+value="([^"]+)"/i) || html.match(/"confirm"\s*:\s*"([^"]+)"/i);
+                    const uuidMatch = html.match(/name="uuid"\s+value="([^"]+)"/i);
+                    let cu = `https://drive.usercontent.google.com/download?id=${fileId}&export=download&authuser=0&confirm=t`;
+                    if (confirmMatch) cu += `&confirm=${confirmMatch[1]}`;
+                    if (uuidMatch) cu += `&uuid=${uuidMatch[1]}`;
+                    const r2 = await axios.get(cu, {
+                        responseType: 'stream', maxRedirects: 10,
+                        headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': '*/*', ...(cookies ? { 'Cookie': cookies } : {}) },
+                        timeout: 60000,
+                    });
+                    if (!(r2.headers['content-type'] || '').includes('text/html')) {
+                        driveStream = r2.data;
+                        driveSize = parseInt(r2.headers['content-length'] || '0', 10);
+                        break;
+                    }
+                    r2.data.destroy();
+                } catch (e) { if (du === driveUrls[driveUrls.length - 1]) throw e; }
+            }
+            if (!driveStream) throw new Error('Google Drive: Không thể tải file. Hãy đảm bảo file được chia sẻ công khai.');
+
+            // Lưu vào file tạm rồi upload
+            const os = require('os');
+            const tmpPath = path.join(os.tmpdir(), path.basename(remotePath));
+            const writeStream = fs.createWriteStream(tmpPath);
+            let downloaded = 0;
+            driveStream.on('data', chunk => {
+                downloaded += chunk.length;
+                if (driveSize > 0) emitProgress(videoId, Math.floor(downloaded / driveSize * 50), 'uploading');
+            });
+            await new Promise((resolve, reject) => {
+                driveStream.pipe(writeStream);
+                writeStream.on('finish', resolve);
+                writeStream.on('error', reject);
+                driveStream.on('error', reject);
+            });
+
+            // Sanity check
+            const tmpStat = fs.statSync(tmpPath);
+            if (tmpStat.size < 100 * 1024) {
+                const head = Buffer.alloc(512);
+                const fd = fs.openSync(tmpPath, 'r');
+                fs.readSync(fd, head, 0, 512, 0);
+                fs.closeSync(fd);
+                if (head.toString('utf8').toLowerCase().includes('<html')) {
+                    fs.unlinkSync(tmpPath);
+                    throw new Error(`Google Drive trả về HTML (${tmpStat.size} bytes). File có thể bị giới hạn lượt tải.`);
+                }
+            }
+
+            await _doUploadToServer(videoId, tmpPath, server, remotePath);
+            if (!controller.cancelled) emitProgress(videoId, 100, 'done');
+            activeUploads.delete(videoId);
+            return;
+        }
+        // ─────────────────────────────────────────────────────────────────────
+
         const response = await axios.get(url, {
             responseType: 'stream',
             signal: abortController.signal,
