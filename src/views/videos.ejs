@@ -58,18 +58,17 @@
                 <div class="empty-state-text">Chưa có video nào. <a href="/videos/upload">Upload ngay!</a></div>
             </div>
         <% } else { %>
-        <table class="table">
+        <table class="table" style="font-size:.82rem">
             <thead>
                 <tr>
                     <% if(user.role==='administrator'){ %>
                     <th style="width:36px"><input type="checkbox" id="selectAll" onchange="toggleAllCheck(this)" title="Chọn tất cả"></th>
                     <% } %>
                     <th>Tiêu đề</th>
-                    <th>Thời gian đăng</th>
+                    <th>Ngày / Người up</th>
                     <th>Server / Thư mục</th>
-                    <th>Kích thước</th>
+                    <th>Size</th>
                     <th>Trạng thái</th>
-                    <th>Người up</th>
                     <th>Thao tác</th>
                 </tr>
             </thead>
@@ -79,13 +78,13 @@
                     <% if(user.role==='administrator'){ %>
                     <td style="width:36px"><input type="checkbox" class="video-check" value="<%= v.id %>" onchange="updateBulkToolbar()"></td>
                     <% } %>
-                    <td>
-                        <div style="font-weight:500;color:var(--text-primary)"><%= v.title %></div>
-                        <div class="text-muted text-xs" style="margin-top:2px"><%= v.original_name||v.filename %></div>
+                    <td style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="<%= v.title %>">
+                        <span style="font-weight:500;color:var(--text-primary)"><%= v.title %></span>
                     </td>
-                    <td class="text-muted text-xs" style="white-space:nowrap">
+                    <td class="text-muted" style="white-space:nowrap;font-size:.78rem">
                         <% const d=new Date(v.created_at); %>
-                        <%= d.toLocaleDateString('vi-VN') %> <%= d.toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'}) %>
+                        <div><%= d.toLocaleDateString('vi-VN') %></div>
+                        <div style="opacity:.7"><%= v.uploader_name %></div>
                     </td>
                     <td>
                         <div class="text-sm"><%= v.server_name||'—' %></div>
@@ -101,7 +100,7 @@
                             <div class="text-xs text-muted" id="pct-<%= v.id %>"><%= v.upload_progress %>%</div>
                         <% } %>
                     </td>
-                    <td class="text-muted text-sm"><%= v.uploader_name %></td>
+
                     <td>
                         <div class="action-group">
                             <% if(v.status==='uploading'||v.status==='pending'){ %>
