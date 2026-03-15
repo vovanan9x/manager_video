@@ -6,6 +6,44 @@ const { EventEmitter } = require('events');
 const db = require('../config/database');
 const { addErrorLog } = require('../config/database');
 
+// ── Upload Queue ──────────────────────────────────────────────────────────────
+// Tối đa MAX_CONCURRENT upload chạy song song.
+// Các upload vượt quá giới hạn sẽ ở trạng thái "pending" và tự động khởi chạy
+// khi có slot trống.
+const MAX_CONCURRENT = 2;
+let runningCount = 0;
+const uploadQueue = []; // [{ fn: async function, videoId }]
+
+function tryFlushQueue() {
+    while (runningCount < MAX_CONCURRENT && uploadQueue.length > 0) {
+        const { fn, videoId } = uploadQueue.shift();
+        runningCount++;
+        console.log(`[Queue] Bắt đầu upload video #${videoId} (đang chạy: ${runningCount}/${MAX_CONCURRENT}, còn chờ: ${uploadQueue.length})`);
+        fn().finally(() => {
+            runningCount--;
+            console.log(`[Queue] Hoàn thành video #${videoId} (đang chạy: ${runningCount}/${MAX_CONCURRENT}, còn chờ: ${uploadQueue.length})`);
+            tryFlushQueue();
+        });
+    }
+}
+
+function enqueueUpload(videoId, fn) {
+    if (runningCount < MAX_CONCURRENT) {
+        runningCount++;
+        console.log(`[Queue] Bắt đầu upload video #${videoId} ngay (đang chạy: ${runningCount}/${MAX_CONCURRENT})`);
+        fn().finally(() => {
+            runningCount--;
+            console.log(`[Queue] Hoàn thành video #${videoId} (đang chạy: ${runningCount}/${MAX_CONCURRENT}, còn chờ: ${uploadQueue.length})`);
+            tryFlushQueue();
+        });
+    } else {
+        console.log(`[Queue] Video #${videoId} xếp hàng chờ (slot đầy: ${runningCount}/${MAX_CONCURRENT}, vị trí: ${uploadQueue.length + 1})`);
+        uploadQueue.push({ fn, videoId });
+        // Giữ nguyên status "pending" trong DB — không cần thay đổi
+    }
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 // Global map of active uploads: videoId -> { abort, type }
 const activeUploads = new Map();
 // SSE clients: videoId -> [res, ...]
@@ -39,7 +77,12 @@ function removeSseClient(videoId, res) {
     if (idx >= 0) list.splice(idx, 1);
 }
 
-async function uploadToServer(videoId, localFilePath, server, remotePath) {
+// Public API — adds to queue, respects MAX_CONCURRENT
+function uploadToServer(videoId, localFilePath, server, remotePath) {
+    enqueueUpload(videoId, () => _doUploadToServer(videoId, localFilePath, server, remotePath));
+}
+
+async function _doUploadToServer(videoId, localFilePath, server, remotePath) {
     const controller = { cancelled: false };
     activeUploads.set(videoId, { controller, type: server.type });
 
@@ -190,7 +233,12 @@ async function uploadHttp(videoId, localFilePath, server, remotePath, controller
     db.prepare('UPDATE videos SET remote_path = ?, file_size = ? WHERE id = ?').run(remotePath, fileSize, videoId);
 }
 
-async function fetchRemoteVideo(videoId, url, server, remotePath, controller) {
+// Public API — adds to queue
+function fetchRemoteVideo(videoId, url, server, remotePath, controller) {
+    enqueueUpload(videoId, () => _doFetchRemoteVideo(videoId, url, server, remotePath, controller));
+}
+
+async function _doFetchRemoteVideo(videoId, url, server, remotePath, controller) {
     activeUploads.set(videoId, { controller, type: 'remote_fetch' });
 
     const abortController = new AbortController();
@@ -272,6 +320,15 @@ async function fetchRemoteVideo(videoId, url, server, remotePath, controller) {
 }
 
 function stopUpload(videoId) {
+    // Remove from waiting queue first
+    const queueIdx = uploadQueue.findIndex(item => item.videoId === videoId);
+    if (queueIdx !== -1) {
+        uploadQueue.splice(queueIdx, 1);
+        emitProgress(videoId, 0, 'stopped');
+        console.log(`[Queue] Video #${videoId} đã bị xóa khỏi hàng chờ`);
+        return true;
+    }
+
     const upload = activeUploads.get(videoId);
     if (!upload) return false;
 
@@ -288,6 +345,14 @@ function getActiveUploads() {
     return Array.from(activeUploads.keys());
 }
 
+function getQueueStatus() {
+    return {
+        running: runningCount,
+        maxConcurrent: MAX_CONCURRENT,
+        waiting: uploadQueue.map(item => item.videoId),
+    };
+}
+
 module.exports = {
     uploadToServer,
     fetchRemoteVideo,
@@ -297,4 +362,5 @@ module.exports = {
     uploadEmitter,
     emitProgress,
     getActiveUploads,
+    getQueueStatus,
 };
