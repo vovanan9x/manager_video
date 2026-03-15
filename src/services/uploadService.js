@@ -269,7 +269,28 @@ async function _doFetchRemoteVideo(videoId, url, server, remotePath, controller)
         });
 
         const totalSize = parseInt(response.headers['content-length'] || '0', 10);
+        const contentType = response.headers['content-type'] || '';
         let transferred = 0;
+
+        // ── Sanity check: từ chối HTML response ──────────────────────────────
+        if (contentType.includes('text/html')) {
+            response.data.destroy();
+            throw new Error(`Remote URL trả về HTML thay vì file video (Content-Type: ${contentType}). URL có thể không hợp lệ hoặc bị chặn.`);
+        }
+        // Nếu file quá nhỏ (< 100 KB) và không có content-length rõ ràng → đọc trước để kiểm tra
+        if (totalSize > 0 && totalSize < 100 * 1024) {
+            const chunks = [];
+            for await (const chunk of response.data) chunks.push(chunk);
+            const buf = Buffer.concat(chunks);
+            const head = buf.slice(0, 512).toString('utf8').toLowerCase();
+            if (head.includes('<html') || head.includes('<!doctype') || head.includes('quota') || head.includes('too many')) {
+                throw new Error(`Remote URL trả về nội dung HTML nhỏ (${buf.length} bytes) thay vì video. URL có thể đã hết hạn hoặc bị giới hạn.`);
+            }
+            // Tạo readable stream từ buffer đã đọc để tiếp tục xử lý
+            const { Readable } = require('stream');
+            response.data = Readable.from(buf);
+        }
+        // ─────────────────────────────────────────────────────────────────────
 
         if (server.type === 'sftp') {
             const sftp = new SftpClient();
