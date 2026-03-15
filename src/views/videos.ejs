@@ -189,11 +189,27 @@
         const res=await fetch('/api/videos/'+id+'/link');
         const data=await res.json();
         if(data.video && data.video.link){
-            navigator.clipboard.writeText(data.video.link).then(()=>{
-                // Show brief toast-style feedback
-                const btn=document.querySelector(`button[onclick="copyLink(${id})"]`);
-                if(btn){ const orig=btn.textContent; btn.textContent='✅'; setTimeout(()=>btn.textContent=orig,1500); }
-            });
+            const link=data.video.link;
+            const btn=document.querySelector(`button[onclick="copyLink(${id})"]`);
+            // Clipboard API chỉ hoạt động trên HTTPS; fallback cho HTTP
+            const doFeedback=()=>{
+                if(btn){ const orig=btn.textContent; btn.textContent='✅ Đã copy!'; setTimeout(()=>btn.textContent=orig,1800); }
+            };
+            if(navigator.clipboard && window.isSecureContext){
+                navigator.clipboard.writeText(link).then(doFeedback).catch(()=>{
+                    prompt('Copy link (Ctrl+C):', link);
+                });
+            } else {
+                // Fallback: tạo textarea tạm, execCommand
+                const ta=document.createElement('textarea');
+                ta.value=link; ta.style.position='fixed'; ta.style.opacity='0';
+                document.body.appendChild(ta); ta.focus(); ta.select();
+                try{
+                    const ok=document.execCommand('copy');
+                    if(ok) doFeedback(); else prompt('Copy link (Ctrl+C):', link);
+                }catch(_){ prompt('Copy link (Ctrl+C):', link); }
+                document.body.removeChild(ta);
+            }
         } else if(data.video && data.video.remote_path && !data.video.link){
             alert('❌ Server chưa có Base URL\n\nVideo đã upload xong nhưng server lưu trữ chưa được cấu hình Base URL (ví dụ: https://cdn.domain.com).\n\nVào Settings → Servers → chỉnh sửa server → điền Base URL.');
         } else {
