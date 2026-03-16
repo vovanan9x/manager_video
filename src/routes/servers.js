@@ -91,11 +91,18 @@ router.get('/disk/:id', requireAdmin, async (req, res) => {
     res.json({ ok: true, ...info });
 });
 
-// GET /servers/api/stats  — disk info + video stats for ALL active servers
-router.get('/api/stats', requireAdmin, async (req, res) => {
-    const servers = db.prepare('SELECT * FROM servers WHERE is_active = 1').all();
+// ── Disk stats cache (60s TTL) ────────────────────────────────────────────
+let _diskStatsCache = null;
+let _diskStatsCacheAt = 0;
+const DISK_CACHE_TTL = 60 * 1000; // 60 giây
 
-    // Video stats from DB (fast)
+async function getDiskStatsAll() {
+    const now = Date.now();
+    if (_diskStatsCache && (now - _diskStatsCacheAt) < DISK_CACHE_TTL) {
+        return _diskStatsCache; // trả cache, không gọi SFTP
+    }
+
+    const servers = db.prepare('SELECT * FROM servers WHERE is_active = 1').all();
     const videoStats = db.prepare(`
         SELECT server_id,
                COUNT(*) as video_count,
@@ -107,9 +114,12 @@ router.get('/api/stats', requireAdmin, async (req, res) => {
     const statsMap = {};
     videoStats.forEach(s => { statsMap[s.server_id] = s; });
 
-    // Fetch disk info concurrently (may be slow for SFTP)
+    // Timeout wrapper — tránh SFTP treo request
+    const withTimeout = (p, ms = 8000) =>
+        Promise.race([p, new Promise(r => setTimeout(() => r({ total: 0, used: 0, free: 0 }), ms))]);
+
     const results = await Promise.all(servers.map(async (s) => {
-        const disk = await getServerDiskInfo(s);
+        const disk = await withTimeout(getServerDiskInfo(s));
         return {
             id:          s.id,
             name:        s.name,
@@ -122,41 +132,44 @@ router.get('/api/stats', requireAdmin, async (req, res) => {
         };
     }));
 
-    res.json(results);
+    _diskStatsCache = results;
+    _diskStatsCacheAt = now;
+    return results;
+}
+
+// GET /servers/api/stats  — disk info + video stats for ALL active servers
+router.get('/api/stats', requireAdmin, async (req, res) => {
+    try {
+        const results = await getDiskStatsAll();
+        res.set('Cache-Control', 'public, max-age=60');
+        res.json(results);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 // GET /servers/api/auto-select  — returns server_id with the most free space
 router.get('/api/auto-select', requireAdmin, async (req, res) => {
-    const servers = db.prepare('SELECT * FROM servers WHERE is_active = 1').all();
-    if (!servers.length) return res.json({ server_id: null, name: null, free: 0 });
+    try {
+        const infos = await getDiskStatsAll();
+        if (!infos.length) return res.json({ server_id: null, name: null, free: 0 });
 
-    // Fetch disk info concurrently
-    const infos = await Promise.all(servers.map(async (s) => {
-        const disk = await getServerDiskInfo(s);
-        return { server_id: s.id, name: s.name, type: s.type, free: disk.free };
-    }));
+        const withInfo = infos.filter(i => i.free > 0);
+        const pool = withInfo.length ? withInfo : infos;
 
-    // Prefer servers where free > 0 (i.e. disk info was available)
-    const withInfo = infos.filter(i => i.free > 0);
-    const pool = withInfo.length ? withInfo : infos;
+        if (!withInfo.length) {
+            // Fallback: server có ít video nhất
+            pool.sort((a, b) => (a.video_size || 0) - (b.video_size || 0));
+        } else {
+            pool.sort((a, b) => b.free - a.free);
+        }
 
-    // If disk info completely unavailable, fall back to server with least video data
-    if (!withInfo.length) {
-        const videoStats = db.prepare(`
-            SELECT server_id, COALESCE(SUM(file_size), 0) as total_size
-            FROM videos WHERE server_id IS NOT NULL GROUP BY server_id
-        `).all();
-        const sizeMap = {};
-        videoStats.forEach(s => { sizeMap[s.server_id] = s.total_size; });
-        const best = servers.reduce((a, b) =>
-            (sizeMap[a.id] || 0) <= (sizeMap[b.id] || 0) ? a : b
-        );
-        return res.json({ server_id: best.id, name: best.name, free: 0, fallback: true });
+        const winner = pool[0];
+        res.json({ server_id: winner.id, name: winner.name, free: winner.free });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
     }
-
-    pool.sort((a, b) => b.free - a.free);
-    const winner = pool[0];
-    res.json({ server_id: winner.server_id, name: winner.name, free: winner.free });
 });
+
 
 module.exports = router;
