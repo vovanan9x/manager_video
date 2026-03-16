@@ -149,6 +149,27 @@ try {
   console.error('[Index] Failed to create idx_videos_idah:', e.message);
 }
 
+// ─── Performance Indexes ─────────────────────────────────────────────────────
+const perfIndexes = [
+  // Sắp xếp mặc định (ORDER BY created_at DESC) — quan trọng nhất
+  'CREATE INDEX IF NOT EXISTS idx_videos_created_at   ON videos(created_at DESC)',
+  // Filter box: status, server, folder, user
+  'CREATE INDEX IF NOT EXISTS idx_videos_status       ON videos(status)',
+  'CREATE INDEX IF NOT EXISTS idx_videos_server_id    ON videos(server_id)',
+  'CREATE INDEX IF NOT EXISTS idx_videos_folder_id    ON videos(folder_id)',
+  'CREATE INDEX IF NOT EXISTS idx_videos_uploaded_by  ON videos(uploaded_by)',
+  // Error logs
+  'CREATE INDEX IF NOT EXISTS idx_error_logs_created  ON error_logs(created_at DESC)',
+];
+for (const sql of perfIndexes) {
+  try {
+    db.prepare(sql).run();
+  } catch (e) {
+    console.error('[Index]', e.message);
+  }
+}
+
+
 function addErrorLog(type, { video_id, video_title, server_id, server_label, message, stack } = {}) {
   try {
     db.prepare(
