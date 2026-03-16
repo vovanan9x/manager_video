@@ -210,7 +210,9 @@ router.post('/:id/retry', requireAuth, async (req, res) => {
         // Reset status
         db.prepare("UPDATE videos SET status='pending', upload_progress=0 WHERE id=?").run(video.id);
         emitProgress(video.id, 0, 'pending');
-        fetchRemoteVideo(video.id, video.source_url, server, remotePath);
+        // Truyền controller để tránh crash trong _doFetchRemoteVideo
+        const controller = { cancelled: false, abort: () => {} };
+        fetchRemoteVideo(video.id, video.source_url, server, remotePath, controller);
         return res.json({ success: true, message: 'Đã thêm vào hàng chờ upload lại' });
     }
 
@@ -226,60 +228,15 @@ router.post('/:id/retry', requireAuth, async (req, res) => {
         db.prepare("UPDATE videos SET status='pending', upload_progress=0 WHERE id=?").run(video.id);
         emitProgress(video.id, 0, 'pending');
 
-        // Re-run Drive download + upload flow
         enqueueUpload(video.id, async () => {
             const { addErrorLog } = require('../config/database');
             try {
                 db.prepare("UPDATE videos SET status='uploading', upload_progress=0 WHERE id=?").run(video.id);
                 emitProgress(video.id, 0, 'uploading');
 
-                // getDriveDownloadStream không được export, tự implement lại inline
-                const axios = require('axios');
-                const os = require('os');
-                const urls = [
-                    `https://drive.usercontent.google.com/download?id=${fileId}&export=download&authuser=0&confirm=t`,
-                    `https://drive.google.com/uc?export=download&id=${fileId}&confirm=t`,
-                ];
-                let driveStream = null, driveSize = 0;
-                for (const url of urls) {
-                    try {
-                        const resp = await axios.get(url, {
-                            responseType: 'stream', maxRedirects: 10,
-                            headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': '*/*' },
-                            timeout: 60000, validateStatus: s => s < 500,
-                        });
-                        const ct = resp.headers['content-type'] || '';
-                        if (!ct.includes('text/html')) {
-                            driveStream = resp.data;
-                            driveSize = parseInt(resp.headers['content-length'] || '0', 10);
-                            break;
-                        }
-                        const chunks = [];
-                        for await (const chunk of resp.data) chunks.push(chunk);
-                        const html = Buffer.concat(chunks).toString('utf8');
-                        const cookies = [].concat(resp.headers['set-cookie'] || []);
-                        const cookieStr = cookies.map(c => c.split(';')[0]).join('; ');
-                        const confirmMatch = html.match(/name="confirm"\s+value="([^"]+)"/i) || html.match(/"confirm"\s*:\s*"([^"]+)"/i);
-                        const uuidMatch = html.match(/name="uuid"\s+value="([^"]+)"/i);
-                        let confirmedUrl = `https://drive.usercontent.google.com/download?id=${fileId}&export=download&authuser=0&confirm=t`;
-                        if (confirmMatch) confirmedUrl += `&confirm=${confirmMatch[1]}`;
-                        if (uuidMatch) confirmedUrl += `&uuid=${uuidMatch[1]}`;
-                        const resp2 = await axios.get(confirmedUrl, {
-                            responseType: 'stream', maxRedirects: 10,
-                            headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': '*/*', ...(cookieStr ? { 'Cookie': cookieStr } : {}) },
-                            timeout: 60000,
-                        });
-                        if (!(resp2.headers['content-type'] || '').includes('text/html')) {
-                            driveStream = resp2.data;
-                            driveSize = parseInt(resp2.headers['content-length'] || '0', 10);
-                            break;
-                        }
-                        resp2.data.destroy();
-                    } catch (e) {
-                        if (url === urls[urls.length - 1]) throw e;
-                    }
-                }
-                if (!driveStream) throw new Error('Không thể tải file từ Google Drive');
+                // Dùng getDriveStream (hỗ trợ Service Account + anonymous fallback)
+                const { getDriveStream } = require('../services/driveService');
+                const { stream: driveStream, size: driveSize } = await getDriveStream(fileId);
 
                 const tmpPath = path.join(os.tmpdir(), video.filename);
                 const writeStream = fs.createWriteStream(tmpPath);
