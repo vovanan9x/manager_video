@@ -295,7 +295,7 @@ router.post('/:id/retry', requireAuth, async (req, res) => {
                     driveStream.on('error', reject);
                 });
 
-                await _doUploadToServer(video.id, tmpPath, server, remotePath);
+                await _doUploadToServer(video.id, tmpPath, server, remotePath, { progressOffset: 50 });
 
             } catch (err) {
                 console.error('[Retry Drive Error]', err.message);

@@ -100,15 +100,16 @@ function uploadToServer(videoId, localFilePath, server, remotePath) {
     enqueueUpload(videoId, () => _doUploadToServer(videoId, localFilePath, server, remotePath));
 }
 
-async function _doUploadToServer(videoId, localFilePath, server, remotePath) {
+async function _doUploadToServer(videoId, localFilePath, server, remotePath, options = {}) {
+    const { progressOffset = 0 } = options; // Drive: offset=50, normal: offset=0
     const controller = { cancelled: false };
     activeUploads.set(videoId, { controller, type: server.type });
 
     try {
         if (server.type === 'sftp') {
-            await uploadSftp(videoId, localFilePath, server, remotePath, controller);
+            await uploadSftp(videoId, localFilePath, server, remotePath, controller, progressOffset);
         } else if (server.type === 'http') {
-            await uploadHttp(videoId, localFilePath, server, remotePath, controller);
+            await uploadHttp(videoId, localFilePath, server, remotePath, controller, progressOffset);
         } else {
             throw new Error(`Loại server '${server.type}' không được hỗ trợ để upload.`);
         }
@@ -147,18 +148,19 @@ async function _doUploadToServer(videoId, localFilePath, server, remotePath) {
 }
 
 
-async function uploadSftp(videoId, localFilePath, server, remotePath, controller) {
+async function uploadSftp(videoId, localFilePath, server, remotePath, controller, progressOffset = 0) {
     const fileSize = fs.statSync(localFilePath).size;
     const remoteFullPath = server.root_path.replace(/\\/g, '/') + '/' + remotePath.replace(/\\/g, '/');
     const remoteDir = path.dirname(remoteFullPath).replace(/\\/g, '/');
+    const scale = (100 - progressOffset) / 100; // e.g. offset=50 → scale=0.5
 
     const buildConnOpts = () => {
         const opts = {
             host: server.host,
             port: server.port || 22,
             username: server.username,
-            keepaliveInterval: 10000,   // send keepalive every 10s
-            keepaliveCountMax: 10,      // allow 10 missed keepalives before disconnect
+            keepaliveInterval: 10000,
+            keepaliveCountMax: 10,
             readyTimeout: 30000,
         };
         if (server.private_key) {
@@ -181,13 +183,14 @@ async function uploadSftp(videoId, localFilePath, server, remotePath, controller
 
             if (controller.cancelled) { await sftp.end(); break; }
 
-            // Track progress via polling interval (fastPut uses file path, not stream)
+            // Track progress via polling interval
             let progressInterval = setInterval(async () => {
                 if (controller.cancelled) return;
                 try {
                     const stat = await sftp.stat(remoteFullPath).catch(() => null);
                     if (stat && fileSize > 0) {
-                        const pct = Math.min(99, Math.floor((stat.size / fileSize) * 100));
+                        const rawPct = Math.min(99, Math.floor((stat.size / fileSize) * 100));
+                        const pct = Math.floor(progressOffset + rawPct * scale);
                         emitProgress(videoId, pct, 'uploading');
                     }
                 } catch (_) {}
@@ -196,7 +199,7 @@ async function uploadSftp(videoId, localFilePath, server, remotePath, controller
             try {
                 await sftp.fastPut(localFilePath, remoteFullPath, {
                     concurrency: 16,
-                    chunkSize: 1024 * 1024, // 1MB chunks
+                    chunkSize: 1024 * 1024,
                 });
             } finally {
                 clearInterval(progressInterval);
@@ -204,32 +207,34 @@ async function uploadSftp(videoId, localFilePath, server, remotePath, controller
 
             db.prepare('UPDATE videos SET remote_path = ?, file_size = ? WHERE id = ?').run(remotePath, fileSize, videoId);
             await sftp.end();
-            return; // success — exit retry loop
+            return;
         } catch (err) {
             try { await sftp.end(); } catch (_) { }
             const isResetError = err.message && (err.message.includes('ECONNRESET') || err.message.includes('ETIMEDOUT') || err.message.includes('ECONNREFUSED'));
             if (isResetError && attempt < MAX_RETRIES && !controller.cancelled) {
                 console.log(`[SFTP Retry] Attempt ${attempt} failed (${err.message}), retrying in 3s...`);
-                emitProgress(videoId, 0, 'uploading');
+                emitProgress(videoId, progressOffset, 'uploading'); // giữ ở offset, không về 0
                 await new Promise(r => setTimeout(r, 3000));
                 continue;
             }
-            throw err; // non-retryable or max retries reached
+            throw err;
         }
     }
 }
 
 
-async function uploadHttp(videoId, localFilePath, server, remotePath, controller) {
+async function uploadHttp(videoId, localFilePath, server, remotePath, controller, progressOffset = 0) {
     const FormData = require('form-data');
     const fileSize = fs.statSync(localFilePath).size;
+    const scale = (100 - progressOffset) / 100;
     const form = new FormData();
     const readStream = fs.createReadStream(localFilePath);
 
     let transferred = 0;
     readStream.on('data', chunk => {
         transferred += chunk.length;
-        const pct = Math.floor((transferred / fileSize) * 100);
+        const rawPct = Math.floor((transferred / fileSize) * 100);
+        const pct = Math.floor(progressOffset + rawPct * scale);
         emitProgress(videoId, pct, 'uploading');
     });
 
@@ -263,59 +268,18 @@ async function _doFetchRemoteVideo(videoId, url, server, remotePath, controller)
     controller.abort = () => abortController.abort();
 
     try {
-        // ── Auto-detect Google Drive URL → dùng Drive download logic ─────────
+        // ── Auto-detect Google Drive URL → dùng driveService (SA hoặc anonymous) ──
         const isDriveUrl = url.includes('drive.google.com') || url.includes('drive.usercontent.google.com');
         if (isDriveUrl) {
-            // Extract fileId từ Drive URL
             let fileId = null;
             const m1 = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
             const m2 = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
             if (m1) fileId = m1[1];
             else if (m2) fileId = m2[1];
-
             if (!fileId) throw new Error('Không thể trích file ID từ Google Drive URL: ' + url);
 
-            // Lấy stream qua Drive download flow (xử lý confirm token, cookie)
-            const driveUrls = [
-                `https://drive.usercontent.google.com/download?id=${fileId}&export=download&authuser=0&confirm=t`,
-                `https://drive.google.com/uc?export=download&id=${fileId}&confirm=t`,
-            ];
-            let driveStream = null, driveSize = 0;
-            for (const du of driveUrls) {
-                try {
-                    const resp = await axios.get(du, {
-                        responseType: 'stream', maxRedirects: 10,
-                        headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': '*/*' },
-                        timeout: 60000, validateStatus: s => s < 500,
-                    });
-                    const ct = resp.headers['content-type'] || '';
-                    if (!ct.includes('text/html')) {
-                        driveStream = resp.data;
-                        driveSize = parseInt(resp.headers['content-length'] || '0', 10);
-                        break;
-                    }
-                    const chunks = []; for await (const c of resp.data) chunks.push(c);
-                    const html = Buffer.concat(chunks).toString('utf8');
-                    const cookies = [].concat(resp.headers['set-cookie'] || []).map(c => c.split(';')[0]).join('; ');
-                    const confirmMatch = html.match(/name="confirm"\s+value="([^"]+)"/i) || html.match(/"confirm"\s*:\s*"([^"]+)"/i);
-                    const uuidMatch = html.match(/name="uuid"\s+value="([^"]+)"/i);
-                    let cu = `https://drive.usercontent.google.com/download?id=${fileId}&export=download&authuser=0&confirm=t`;
-                    if (confirmMatch) cu += `&confirm=${confirmMatch[1]}`;
-                    if (uuidMatch) cu += `&uuid=${uuidMatch[1]}`;
-                    const r2 = await axios.get(cu, {
-                        responseType: 'stream', maxRedirects: 10,
-                        headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': '*/*', ...(cookies ? { 'Cookie': cookies } : {}) },
-                        timeout: 60000,
-                    });
-                    if (!(r2.headers['content-type'] || '').includes('text/html')) {
-                        driveStream = r2.data;
-                        driveSize = parseInt(r2.headers['content-length'] || '0', 10);
-                        break;
-                    }
-                    r2.data.destroy();
-                } catch (e) { if (du === driveUrls[driveUrls.length - 1]) throw e; }
-            }
-            if (!driveStream) throw new Error('Google Drive: Không thể tải file. Hãy đảm bảo file được chia sẻ công khai.');
+            const { getDriveStream } = require('./driveService');
+            const { stream: driveStream, size: driveSize } = await getDriveStream(fileId);
 
             // Lưu vào file tạm rồi upload
             const os = require('os');
@@ -333,7 +297,7 @@ async function _doFetchRemoteVideo(videoId, url, server, remotePath, controller)
                 driveStream.on('error', reject);
             });
 
-            // Sanity check
+            // Sanity check — đảm bảo không phải HTML
             const tmpStat = fs.statSync(tmpPath);
             if (tmpStat.size < 100 * 1024) {
                 const head = Buffer.alloc(512);
@@ -346,12 +310,13 @@ async function _doFetchRemoteVideo(videoId, url, server, remotePath, controller)
                 }
             }
 
-            await _doUploadToServer(videoId, tmpPath, server, remotePath);
+            await _doUploadToServer(videoId, tmpPath, server, remotePath, { progressOffset: 50 });
             if (!controller.cancelled) emitProgress(videoId, 100, 'done');
             activeUploads.delete(videoId);
             return;
         }
         // ─────────────────────────────────────────────────────────────────────
+
 
         const response = await axios.get(url, {
             responseType: 'stream',

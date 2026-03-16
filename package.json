@@ -19,6 +19,7 @@
     "express-session": "^1.19.0",
     "form-data": "^4.0.5",
     "ftp": "^0.3.10",
+    "googleapis": "^171.4.0",
     "morgan": "^1.10.1",
     "multer": "^2.1.1",
     "multer-storage-s3": "^1.1.1",
