@@ -21,6 +21,7 @@
 <% if(user.role==='administrator'){ %>
 <div id="bulkToolbar" style="display:none;align-items:center;gap:.75rem;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);border-radius:var(--radius);padding:.6rem 1rem;margin-bottom:.75rem">
     <span id="bulkCount" style="font-size:.85rem;color:var(--text-secondary);font-weight:500">0 đã chọn</span>
+    <button id="bulkRetryBtn" class="btn btn-warning btn-sm" onclick="bulkRetry()">🔄 Retry đã chọn</button>
     <button class="btn btn-danger btn-sm" onclick="bulkDelete()">🗑️ Xóa đã chọn</button>
     <button class="btn btn-secondary btn-sm" onclick="clearSelection()">✕ Bỏ chọn</button>
 </div>
@@ -271,7 +272,39 @@
         if (deleted > 0) setTimeout(() => location.reload(), 400);
     }
 
-    // SSE for active uploads
+    async function bulkRetry() {
+        const ids = getChecked();
+        if (!ids.length) return;
+        const btn = document.getElementById('bulkRetryBtn');
+        const origText = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = '⏳ Đang xử lý...';
+        try {
+            const res = await fetch('/videos/bulk-retry', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ids }),
+            });
+            const data = await res.json();
+            if (data.success) {
+                const msg = [
+                    data.queued   ? `✅ Đã thêm ${data.queued} video vào hàng chờ` : '',
+                    data.skipped  ? `⏩ Bỏ qua ${data.skipped} video (không ở trạng thái lỗi)` : '',
+                    data.errors   ? `❌ ${data.errors} video gặp lỗi` : '',
+                ].filter(Boolean).join('\n');
+                clearSelection();
+                alert(msg || 'Xong!');
+                setTimeout(() => location.reload(), 800);
+            } else {
+                alert('❌ ' + (data.error || 'Không thể retry'));
+            }
+        } catch (e) {
+            alert('❌ Lỗi kết nối khi bulk retry');
+        }
+        btn.disabled = false;
+        btn.textContent = origText;
+    }
+
     <% videos.filter(v=>v.status==='uploading'||v.status==='pending').forEach(v=>{ %>
     (function(){
         const es = new EventSource('/videos/progress/<%= v.id %>');

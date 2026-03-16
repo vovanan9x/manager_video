@@ -270,8 +270,79 @@ router.post('/:id/retry', requireAuth, async (req, res) => {
 
     return res.status(400).json({ error: `Không hỗ trợ retry cho loại nguồn: ${sourceType}` });
 });
+// POST /videos/bulk-retry — retry nhiều video cùng lúc
+router.post('/bulk-retry', requireAuth, async (req, res) => {
+    const ids = [].concat(req.body.ids || []).map(Number).filter(Boolean);
+    if (!ids.length) return res.status(400).json({ error: 'Không có video nào được chọn' });
 
-// GET /videos/edit/:id
+    const results = { queued: [], skipped: [], errors: [] };
+
+    for (const videoId of ids) {
+        const video = db.prepare('SELECT * FROM videos WHERE id = ?').get(videoId);
+        if (!video) { results.skipped.push({ id: videoId, reason: 'Không tồn tại' }); continue; }
+
+        // Quyền: admin hoặc owner
+        if (video.uploaded_by !== req.session.user.id && req.session.user.role !== 'administrator') {
+            results.skipped.push({ id: videoId, reason: 'Không có quyền' });
+            continue;
+        }
+        if (video.status !== 'error' && video.status !== 'stopped') {
+            results.skipped.push({ id: videoId, reason: `Trạng thái ${video.status} không thể retry` });
+            continue;
+        }
+        if (!video.server_id) {
+            results.errors.push({ id: videoId, reason: 'Chưa gán server' });
+            continue;
+        }
+        if (video.source_type === 'local') {
+            results.skipped.push({ id: videoId, reason: 'Local upload không thể retry' });
+            continue;
+        }
+
+        const server = db.prepare('SELECT * FROM servers WHERE id = ?').get(video.server_id);
+        if (!server) { results.errors.push({ id: videoId, reason: 'Server không tồn tại' }); continue; }
+
+        const remotePath = video.remote_path || ((video.folder_id ? 'f' + video.folder_id + '/' : '') + video.filename);
+
+        db.prepare("UPDATE videos SET status='pending', upload_progress=0 WHERE id=?").run(videoId);
+        emitProgress(videoId, 0, 'pending');
+
+        if (video.source_type === 'remote') {
+            const controller = { cancelled: false, abort: () => {} };
+            fetchRemoteVideo(videoId, video.source_url, server, remotePath, controller);
+        } else if (video.source_type === 'drive' || (video.source_url && video.source_url.includes('drive.google.com'))) {
+            const fileIdMatch = (video.source_url || '').match(/[?&]id=([a-zA-Z0-9_-]+)/);
+            if (!fileIdMatch) { results.errors.push({ id: videoId, reason: 'Không lấy được Drive file ID' }); continue; }
+            const fileId = fileIdMatch[1];
+
+            enqueueUpload(videoId, async () => {
+                const { addErrorLog } = require('../config/database');
+                try {
+                    db.prepare("UPDATE videos SET status='uploading', upload_progress=0 WHERE id=?").run(videoId);
+                    emitProgress(videoId, 0, 'uploading');
+                    const { getDriveStream } = require('../services/driveService');
+                    const { stream: driveStream, size: driveSize } = await getDriveStream(fileId);
+                    const tmpPath = path.join(os.tmpdir(), video.filename);
+                    const ws = fs.createWriteStream(tmpPath);
+                    let dl = 0;
+                    driveStream.on('data', c => { dl += c.length; if (driveSize > 0) emitProgress(videoId, Math.floor(dl / driveSize * 50), 'uploading'); });
+                    await new Promise((res, rej) => { driveStream.pipe(ws); ws.on('finish', res); ws.on('error', rej); driveStream.on('error', rej); });
+                    await _doUploadToServer(videoId, tmpPath, server, remotePath, { progressOffset: 50 });
+                } catch (err) {
+                    console.error(`[Bulk Retry Drive #${videoId}]`, err.message);
+                    addErrorLog('drive_upload', { video_id: videoId, video_title: video.title, server_id: server.id, server_label: server.name, message: err.message, stack: err.stack });
+                    db.prepare("UPDATE videos SET status='error' WHERE id=?").run(videoId);
+                    emitProgress(videoId, 0, 'error');
+                }
+            });
+        }
+
+        results.queued.push(videoId);
+    }
+
+    res.json({ success: true, queued: results.queued.length, skipped: results.skipped.length, errors: results.errors.length, detail: results });
+});
+
 router.get('/edit/:id', requireAuth, (req, res) => {
     const video = db.prepare('SELECT * FROM videos WHERE id = ?').get(req.params.id);
     if (!video) return res.redirect('/videos');
