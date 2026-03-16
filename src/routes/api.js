@@ -198,49 +198,70 @@ function extractDriveFileId(input) {
 async function getDriveDownloadStream(fileId) {
     const axios = require('axios');
 
-    // Modern endpoint (2024+) — handles large files better
+    const commonHeaders = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+    };
+
+    // Thử lần lượt các URL patterns
     const urls = [
         `https://drive.usercontent.google.com/download?id=${fileId}&export=download&authuser=0&confirm=t`,
         `https://drive.google.com/uc?export=download&id=${fileId}&confirm=t`,
+        `https://drive.google.com/uc?id=${fileId}&export=download`,  // không confirm, thường dùng cho file nhỏ
     ];
+
+    let lastHtml = '';
 
     for (const url of urls) {
         try {
-            // Use a cookie jar approach: first request may set warning cookie
             const resp1 = await axios.get(url, {
                 responseType: 'stream',
                 maxRedirects: 10,
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                    'Accept': '*/*',
-                },
+                headers: commonHeaders,
                 timeout: 60000,
                 validateStatus: s => s < 500,
             });
 
             const contentType = resp1.headers['content-type'] || '';
 
-            // Got a real file stream
+            // Nhận file thật
             if (!contentType.includes('text/html')) {
                 const size = parseInt(resp1.headers['content-length'] || '0', 10);
                 return { stream: resp1.data, size };
             }
 
-            // Got HTML — parse for confirm token or cookie
+            // Nhận HTML — parse confirm token
             const chunks = [];
             for await (const chunk of resp1.data) chunks.push(chunk);
             const html = Buffer.concat(chunks).toString('utf8');
+            lastHtml = html.substring(0, 800);
+            console.warn(`[Drive] URL ${url} trả HTML. Preview:\n${lastHtml}\n---`);
 
-            // Extract Set-Cookie warning cookie (e.g. download_warning_xxxxx)
             const cookies = [].concat(resp1.headers['set-cookie'] || []);
             const cookieStr = cookies.map(c => c.split(';')[0]).join('; ');
 
-            // Try to find confirm token in form or in download_warning cookie
             const confirmMatch = html.match(/name="confirm"\s+value="([^"]+)"/i)
                 || html.match(/"confirm"\s*:\s*"([^"]+)"/i);
             const uuidMatch = html.match(/name="uuid"\s+value="([^"]+)"/i);
 
-            // Build confirmed URL
+            // Detect lỗi rõ ràng
+            const htmlLower = html.toLowerCase();
+            if (htmlLower.includes('quota') || htmlLower.includes('too many')) {
+                throw new Error('Google Drive: File đã đạt giới hạn lượt tải trong ngày. Hãy thử lại sau hoặc dùng link Drive khác.');
+            }
+            if (htmlLower.includes('you need access') || htmlLower.includes('request access') || htmlLower.includes('access denied')) {
+                throw new Error('Google Drive: File chưa được chia sẻ công khai. Hãy vào Google Drive → Share → "Anyone with the link".');
+            }
+            if (htmlLower.includes('sharing is not available') || htmlLower.includes('sharing has been disabled')) {
+                throw new Error('Google Drive: File bị tắt chia sẻ bởi admin hoặc chính sách tổ chức.');
+            }
+
+            if (!confirmMatch && !uuidMatch && !cookieStr) {
+                // Không tìm được token — thử URL tiếp theo
+                continue;
+            }
+
             let confirmedUrl = `https://drive.usercontent.google.com/download?id=${fileId}&export=download&authuser=0&confirm=t`;
             if (confirmMatch) confirmedUrl += `&confirm=${confirmMatch[1]}`;
             if (uuidMatch) confirmedUrl += `&uuid=${uuidMatch[1]}`;
@@ -249,8 +270,7 @@ async function getDriveDownloadStream(fileId) {
                 responseType: 'stream',
                 maxRedirects: 10,
                 headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                    'Accept': '*/*',
+                    ...commonHeaders,
                     ...(cookieStr ? { 'Cookie': cookieStr } : {}),
                 },
                 timeout: 60000,
@@ -262,23 +282,24 @@ async function getDriveDownloadStream(fileId) {
                 return { stream: resp2.data, size };
             }
 
-            // vẫn là HTML — lấy nội dung để debug và phát hiện quota error
             const chunks2 = [];
             for await (const chunk of resp2.data) chunks2.push(chunk);
-            const html2 = Buffer.concat(chunks2).toString('utf8').substring(0, 500);
-            console.warn(`[Drive] URL ${url} vẫn trả HTML sau confirm. Preview: ${html2}`);
+            const html2 = Buffer.concat(chunks2).toString('utf8');
+            lastHtml = html2.substring(0, 800);
+            console.warn(`[Drive] Confirmed URL vẫn trả HTML. Preview:\n${lastHtml}\n---`);
 
-            const isQuotaError = html2.includes('quota') || html2.includes('too many') || html2.includes('cannot') || html2.includes('virus scan');
-            if (isQuotaError) {
+            const html2Lower = html2.toLowerCase();
+            if (html2Lower.includes('quota') || html2Lower.includes('too many')) {
                 throw new Error('Google Drive: File đã đạt giới hạn lượt tải trong ngày. Hãy thử lại sau hoặc dùng link Drive khác.');
             }
         } catch (e) {
-            // Try next URL
             if (url === urls[urls.length - 1]) throw e;
+            // Nếu là lỗi xác định (quota, access) → không thử URL tiếp
+            if (e.message.startsWith('Google Drive:')) throw e;
         }
     }
 
-    throw new Error('Google Drive: Không thể tải file. Hãy đảm bảo file được chia sẻ công khai (Anyone with the link).');
+    throw new Error(`Google Drive: Không thể tải file. Hãy đảm bảo file được chia sẻ công khai (Anyone with the link).\nHTML cuối: ${lastHtml.substring(0, 200)}`);
 }
 
 /**
