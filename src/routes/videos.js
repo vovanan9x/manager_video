@@ -16,9 +16,12 @@ router.get('/', requireAuth, (req, res) => {
     const folders = db.prepare('SELECT id, name, path FROM folders ORDER BY path').all();
     const users   = db.prepare('SELECT id, username FROM users ORDER BY username').all();
 
-    const PAGE_SIZE = 15;
+    const ALLOWED_SIZES = [10, 15, 20, 30, 50, 100, 200];
+    const rawSize = parseInt(req.query.per_page) || 15;
+    const PAGE_SIZE = ALLOWED_SIZES.includes(rawSize) ? rawSize : 15;
     const page = Math.max(1, parseInt(req.query.page) || 1);
     const offset = (page - 1) * PAGE_SIZE;
+
 
     let baseQuery = `FROM videos v
     LEFT JOIN users u ON v.uploaded_by = u.id
