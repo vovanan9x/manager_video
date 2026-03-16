@@ -176,7 +176,9 @@ router.post('/queue/resume', requireAuth, requireAdmin, (req, res) => {
 
 // POST /videos/:id/retry — thử lại upload cho video lỗi / bị dừng
 router.post('/:id/retry', requireAuth, async (req, res) => {
-    const video = db.prepare('SELECT v.*, s.* FROM videos v LEFT JOIN servers s ON v.server_id = s.id WHERE v.id = ?').get(req.params.id);
+    const videoId = parseInt(req.params.id);
+    // Query tách biệt để tránh s.id ghi đè v.id khi JOIN
+    const video = db.prepare('SELECT * FROM videos WHERE id = ?').get(videoId);
     if (!video) return res.status(404).json({ error: 'Video không tồn tại' });
 
     // Chỉ cho phép owner hoặc admin retry
@@ -201,40 +203,34 @@ router.post('/:id/retry', requireAuth, async (req, res) => {
     const sourceType = video.source_type;
 
     if (sourceType === 'local') {
-        // File tạm đã bị xóa sau khi upload — không thể retry local
         return res.status(400).json({ error: 'Không thể thử lại upload từ file gốc vì file tạm đã bị xóa. Vui lòng upload lại file.' });
     }
 
     if (sourceType === 'remote') {
         if (!video.source_url) return res.status(400).json({ error: 'Không tìm thấy URL nguồn để thử lại' });
-        // Reset status
-        db.prepare("UPDATE videos SET status='pending', upload_progress=0 WHERE id=?").run(video.id);
-        emitProgress(video.id, 0, 'pending');
-        // Truyền controller để tránh crash trong _doFetchRemoteVideo
+        db.prepare("UPDATE videos SET status='pending', upload_progress=0 WHERE id=?").run(videoId);
+        emitProgress(videoId, 0, 'pending');
         const controller = { cancelled: false, abort: () => {} };
-        fetchRemoteVideo(video.id, video.source_url, server, remotePath, controller);
+        fetchRemoteVideo(videoId, video.source_url, server, remotePath, controller);
         return res.json({ success: true, message: 'Đã thêm vào hàng chờ upload lại' });
     }
 
     if (sourceType === 'drive' || (video.source_url && video.source_url.includes('drive.google.com'))) {
         if (!video.source_url) return res.status(400).json({ error: 'Không tìm thấy Drive URL để thử lại' });
 
-        // Trích fileId từ source_url
         const fileIdMatch = video.source_url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
         if (!fileIdMatch) return res.status(400).json({ error: 'Không thể lấy file ID từ Drive URL' });
         const fileId = fileIdMatch[1];
 
-        // Reset status
-        db.prepare("UPDATE videos SET status='pending', upload_progress=0 WHERE id=?").run(video.id);
-        emitProgress(video.id, 0, 'pending');
+        db.prepare("UPDATE videos SET status='pending', upload_progress=0 WHERE id=?").run(videoId);
+        emitProgress(videoId, 0, 'pending');
 
-        enqueueUpload(video.id, async () => {
+        enqueueUpload(videoId, async () => {
             const { addErrorLog } = require('../config/database');
             try {
-                db.prepare("UPDATE videos SET status='uploading', upload_progress=0 WHERE id=?").run(video.id);
-                emitProgress(video.id, 0, 'uploading');
+                db.prepare("UPDATE videos SET status='uploading', upload_progress=0 WHERE id=?").run(videoId);
+                emitProgress(videoId, 0, 'uploading');
 
-                // Dùng getDriveStream (hỗ trợ Service Account + anonymous fallback)
                 const { getDriveStream } = require('../services/driveService');
                 const { stream: driveStream, size: driveSize } = await getDriveStream(fileId);
 
@@ -243,7 +239,7 @@ router.post('/:id/retry', requireAuth, async (req, res) => {
                 let downloaded = 0;
                 driveStream.on('data', chunk => {
                     downloaded += chunk.length;
-                    if (driveSize > 0) emitProgress(video.id, Math.floor(downloaded / driveSize * 50), 'uploading');
+                    if (driveSize > 0) emitProgress(videoId, Math.floor(downloaded / driveSize * 50), 'uploading');
                 });
                 await new Promise((resolve, reject) => {
                     driveStream.pipe(writeStream);
@@ -252,20 +248,20 @@ router.post('/:id/retry', requireAuth, async (req, res) => {
                     driveStream.on('error', reject);
                 });
 
-                await _doUploadToServer(video.id, tmpPath, server, remotePath, { progressOffset: 50 });
+                await _doUploadToServer(videoId, tmpPath, server, remotePath, { progressOffset: 50 });
 
             } catch (err) {
                 console.error('[Retry Drive Error]', err.message);
                 addErrorLog('drive_upload', {
-                    video_id: video.id,
+                    video_id: videoId,
                     video_title: video.title,
                     server_id: server.id,
                     server_label: server.name,
                     message: err.message,
                     stack: err.stack,
                 });
-                db.prepare("UPDATE videos SET status='error' WHERE id=?").run(video.id);
-                emitProgress(video.id, 0, 'error');
+                db.prepare("UPDATE videos SET status='error' WHERE id=?").run(videoId);
+                emitProgress(videoId, 0, 'error');
             }
         });
 
