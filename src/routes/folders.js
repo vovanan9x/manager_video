@@ -26,7 +26,7 @@ function renderTree(nodes, serverId, isAdmin) {
         html += hasKids
             ? `<button class="toggle-btn" onclick="toggleNode(this)" title="Thu gọn/Mở rộng" data-folder-id="${node.id}">&#9658;</button>`
             : `<span class="toggle-placeholder"></span>`;
-        html += `<label class="custom-cb"><input type="checkbox" class="folder-check" value="${node.id}" data-server-id="${sid}" onchange="updateBulkFolderToolbar()"><span class="cb-mark"></span></label>`;
+        html += `<label class="custom-cb"><input type="checkbox" class="folder-check" value="${node.id}" data-server-id="${sid}"><span class="cb-mark"></span></label>`;
         html += `<span class="folder-icon">📁</span>`;
         html += `<span class="folder-name">${safeName}</span>`;
         html += `<span class="folder-path-chip" title="${safePath}">${safePath}</span>`;

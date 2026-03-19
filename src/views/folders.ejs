@@ -1093,24 +1093,25 @@
                                 // ── Bulk Move ──────────────────────────────────────────────
 
                                 // Shift+click range selection
+                                var _shiftHeld = false;
                                 var _lastCheckedIndex = -1;
-                                document.addEventListener('click', function(e) {
-                                    var cb = e.target.closest('.custom-cb');
-                                    if (!cb) return;
-                                    var input = cb.querySelector('.folder-check');
-                                    if (!input) return;
+                                document.addEventListener('keydown', function(e) { if (e.key === 'Shift') _shiftHeld = true; });
+                                document.addEventListener('keyup', function(e) { if (e.key === 'Shift') _shiftHeld = false; });
+                                document.addEventListener('change', function(e) {
+                                    var input = e.target;
+                                    if (!input.classList.contains('folder-check')) return;
                                     var all = [...document.querySelectorAll('.folder-check')];
                                     var idx = all.indexOf(input);
-                                    if (e.shiftKey && _lastCheckedIndex >= 0 && _lastCheckedIndex !== idx) {
+                                    if (_shiftHeld && _lastCheckedIndex >= 0 && _lastCheckedIndex !== idx) {
                                         var start = Math.min(_lastCheckedIndex, idx);
                                         var end = Math.max(_lastCheckedIndex, idx);
-                                        var checked = input.checked;
+                                        var state = input.checked;
                                         for (var i = start; i <= end; i++) {
-                                            all[i].checked = checked;
+                                            all[i].checked = state;
                                         }
-                                        updateBulkFolderToolbar();
                                     }
                                     _lastCheckedIndex = idx;
+                                    updateBulkFolderToolbar();
                                 });
 
                                 function getCheckedFolders() {
