@@ -645,6 +645,9 @@ code {
   border-radius: var(--radius);
   width: 100%;
   max-width: 490px;
+  max-height: calc(100vh - 4rem);
+  display: flex;
+  flex-direction: column;
   box-shadow: 0 24px 64px rgba(0,0,0,.7), 0 0 0 1px rgba(99,102,241,.1);
   animation: modalIn 0.2s ease;
 }
@@ -665,7 +668,7 @@ code {
 
 .modal-title { font-size: 0.95rem; font-weight: 700; color: var(--text-primary); }
 
-.modal-body { padding: 1.25rem; }
+.modal-body { padding: 1.25rem; overflow-y: auto; flex: 1; min-height: 0; }
 .modal-footer {
   display: flex;
   justify-content: flex-end;

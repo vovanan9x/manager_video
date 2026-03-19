@@ -1156,12 +1156,18 @@
                                         collectDescendants(fid).forEach(function(d) { excluded.add(d); });
                                     });
 
-                                    // Summary
+                                    // Summary (show max 3 names + count)
                                     var names = checked.map(function(c) {
                                         var f = folderData.find(function(fd) { return fd.id === c.id; });
                                         return f ? f.name : '#' + c.id;
                                     });
-                                    document.getElementById('bulkMoveSummary').textContent = '📋 ' + names.join(', ');
+                                    var summary = '📋 ';
+                                    if (names.length <= 3) {
+                                        summary += names.join(', ');
+                                    } else {
+                                        summary += names.slice(0, 3).join(', ') + ' và ' + (names.length - 3) + ' thư mục khác';
+                                    }
+                                    document.getElementById('bulkMoveSummary').textContent = summary;
 
                                     // Populate target picker — same server only
                                     populateFolderPicker(
