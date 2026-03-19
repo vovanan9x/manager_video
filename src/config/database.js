@@ -118,6 +118,7 @@ function runMigrations() {
     { table: 'videos', column: 'source_url',    definition: 'TEXT' },
     { table: 'videos', column: 'original_name', definition: 'TEXT' },
     { table: 'videos', column: 'idah',          definition: 'TEXT' },
+    { table: 'videos', column: 'short_code',    definition: 'TEXT' },
     // servers table — các cột thêm sau
     { table: 'servers', column: 'private_key',  definition: 'TEXT' },
     { table: 'servers', column: 'api_key',      definition: 'TEXT' },
@@ -148,6 +149,29 @@ try {
 } catch (e) {
   console.error('[Index] Failed to create idx_videos_idah:', e.message);
 }
+
+// Unique index cho short_code
+try {
+  db.prepare('CREATE UNIQUE INDEX IF NOT EXISTS idx_videos_short_code ON videos(short_code) WHERE short_code IS NOT NULL').run();
+} catch (e) {
+  console.error('[Index] Failed to create idx_videos_short_code:', e.message);
+}
+
+// Backfill short_code cho các video chưa có
+(function backfillShortCodes() {
+  const { randomBytes } = require('crypto');
+  const videos = db.prepare('SELECT id FROM videos WHERE short_code IS NULL').all();
+  const update = db.prepare('UPDATE videos SET short_code = ? WHERE id = ?');
+  for (const v of videos) {
+    let code, exists;
+    do {
+      code = randomBytes(6).toString('hex'); // 12 ký tự hex
+      exists = db.prepare('SELECT id FROM videos WHERE short_code = ?').get(code);
+    } while (exists);
+    update.run(code, v.id);
+  }
+  if (videos.length > 0) console.log(`[DB] Backfilled short_code for ${videos.length} videos`);
+})();
 
 // ─── Performance Indexes ─────────────────────────────────────────────────────
 const perfIndexes = [
@@ -180,5 +204,17 @@ function addErrorLog(type, { video_id, video_title, server_id, server_label, mes
   }
 }
 
+// Sinh short_code ngẫu nhiên duy nhất (12 ký tự hex = 6 bytes)
+function generateShortCode() {
+  const { randomBytes } = require('crypto');
+  let code, exists;
+  do {
+    code = randomBytes(6).toString('hex');
+    exists = db.prepare('SELECT id FROM videos WHERE short_code = ?').get(code);
+  } while (exists);
+  return code;
+}
+
 module.exports = db;
 module.exports.addErrorLog = addErrorLog;
+module.exports.generateShortCode = generateShortCode;

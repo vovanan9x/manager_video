@@ -8,6 +8,7 @@ const { requireAuth } = require('../middleware/auth');
 const upload = require('../middleware/upload');
 const { uploadToServer, fetchRemoteVideo, stopUpload, addSseClient, removeSseClient, enqueueUpload, emitProgress, _doUploadToServer, pauseQueue, resumeQueue, isQueuePaused, getQueueStatus } = require('../services/uploadService');
 const { deleteFromServer, deleteFromSftp } = require('../services/serverService');
+const { generateShortCode } = require('../config/database');
 
 // GET /videos - list
 router.get('/', requireAuth, (req, res) => {
@@ -106,9 +107,9 @@ router.post('/upload/local', requireAuth, upload.single('video'), async (req, re
     const remotePath = (folder ? 'f' + folder.id + '/' : '') + filename;
 
     const stmt = db.prepare(
-        'INSERT INTO videos (title, description, genre, filename, original_name, folder_id, server_id, uploaded_by, status, source_type, idah) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        'INSERT INTO videos (title, description, genre, filename, original_name, folder_id, server_id, uploaded_by, status, source_type, idah, short_code) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     );
-    const result = stmt.run(title, description || '', genre || '', filename, req.file.originalname, folder_id || null, server_id, req.session.user.id, 'pending', 'local', idah || null);
+    const result = stmt.run(title, description || '', genre || '', filename, req.file.originalname, folder_id || null, server_id, req.session.user.id, 'pending', 'local', idah || null, generateShortCode());
     const videoId = result.lastInsertRowid;
 
     // Start upload in background
@@ -133,9 +134,9 @@ router.post('/upload/remote', requireAuth, async (req, res) => {
     const remotePath = (folder ? 'f' + folder.id + '/' : '') + filename;
 
     const stmt = db.prepare(
-        'INSERT INTO videos (title, description, genre, filename, original_name, folder_id, server_id, uploaded_by, status, source_type, source_url, idah) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        'INSERT INTO videos (title, description, genre, filename, original_name, folder_id, server_id, uploaded_by, status, source_type, source_url, idah, short_code) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     );
-    const result = stmt.run(title, description || '', genre || '', filename, path.basename(url), folder_id || null, server_id, req.session.user.id, 'pending', 'remote', url, idah || null);
+    const result = stmt.run(title, description || '', genre || '', filename, path.basename(url), folder_id || null, server_id, req.session.user.id, 'pending', 'remote', url, idah || null, generateShortCode());
     const videoId = result.lastInsertRowid;
 
     const controller = { cancelled: false };

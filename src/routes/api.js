@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const path = require('path');
 const db = require('../config/database');
-const { addErrorLog } = require('../config/database');
+const { addErrorLog, generateShortCode } = require('../config/database');
 const upload = require('../middleware/upload');
 const { uploadToServer, fetchRemoteVideo, stopUpload, emitProgress, enqueueUpload } = require('../services/uploadService');
 const { deleteFromServer, deleteFromSftp } = require('../services/serverService');
@@ -59,8 +59,9 @@ router.get('/videos', apiAuth, (req, res) => {
 // GET /api/videos/:id/link - get video link
 router.get('/videos/:id/link', requireSessionUser, (req, res) => {
     const video = db.prepare(`
-    SELECT v.*, s.base_url, s.root_path, s.type as server_type
-    FROM videos v LEFT JOIN servers s ON v.server_id = s.id
+    SELECT v.id, v.title, v.description, v.genre, v.status,
+           v.filename, v.remote_path, v.idah, v.short_code, v.created_at
+    FROM videos v
     WHERE v.id = ?
   `).get(req.params.id);
 
@@ -69,10 +70,7 @@ router.get('/videos/:id/link', requireSessionUser, (req, res) => {
     const settingDomain = db.prepare('SELECT value FROM settings WHERE key = ?').get('domain');
     const domain = settingDomain ? settingDomain.value.replace(/\/$/, '') : 'http://localhost:3000';
 
-    let link = null;
-    if (video.remote_path && video.base_url) {
-        link = video.base_url.replace(/\/$/, '') + '/' + video.remote_path.replace(/^\//, '');
-    }
+    const link = video.short_code ? `${domain}/v/${video.short_code}` : null;
 
     res.json({
         success: true,
@@ -95,8 +93,9 @@ router.get('/videos/:id/link', requireSessionUser, (req, res) => {
 router.get('/videos/by-idah/:idah/link', requireSessionUser, (req, res) => {
     const idah = req.params.idah;
     const video = db.prepare(`
-        SELECT v.*, s.base_url, s.root_path, s.type as server_type
-        FROM videos v LEFT JOIN servers s ON v.server_id = s.id
+        SELECT v.id, v.title, v.description, v.genre, v.status,
+               v.filename, v.remote_path, v.idah, v.short_code, v.created_at
+        FROM videos v
         WHERE v.idah = ?
         ORDER BY v.created_at DESC
         LIMIT 1
@@ -104,10 +103,10 @@ router.get('/videos/by-idah/:idah/link', requireSessionUser, (req, res) => {
 
     if (!video) return res.status(404).json({ error: 'Không tìm thấy video với IDAH: ' + idah });
 
-    let link = null;
-    if (video.remote_path && video.base_url) {
-        link = video.base_url.replace(/\/$/, '') + '/' + video.remote_path.replace(/^\//, '');
-    }
+    const settingDomain = db.prepare('SELECT value FROM settings WHERE key = ?').get('domain');
+    const domain = settingDomain ? settingDomain.value.replace(/\/$/, '') : 'http://localhost:3000';
+
+    const link = video.short_code ? `${domain}/v/${video.short_code}` : null;
 
     res.json({
         success: true,
@@ -143,8 +142,8 @@ router.post('/videos/upload', apiAuth, upload.single('video'), async (req, res) 
     const userId = req.session?.user?.id || 1;
 
     const result = db.prepare(
-        'INSERT INTO videos (title, description, filename, original_name, folder_id, server_id, uploaded_by, status, source_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
-    ).run(title, description || '', filename, req.file.originalname, folder_id || null, server_id, userId, 'pending', 'local');
+        'INSERT INTO videos (title, description, filename, original_name, folder_id, server_id, uploaded_by, status, source_type, short_code) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    ).run(title, description || '', filename, req.file.originalname, folder_id || null, server_id, userId, 'pending', 'local', generateShortCode());
 
     const videoId = result.lastInsertRowid;
     const controller = { cancelled: false };
@@ -166,8 +165,8 @@ router.post('/videos/remote-upload', apiAuth, async (req, res) => {
     const userId = req.session?.user?.id || 1;
 
     const result = db.prepare(
-        'INSERT INTO videos (title, description, filename, original_name, folder_id, server_id, uploaded_by, status, source_type, source_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-    ).run(title, description || '', filename, path.basename(url), folder_id || null, server_id, userId, 'pending', 'remote', url);
+        'INSERT INTO videos (title, description, filename, original_name, folder_id, server_id, uploaded_by, status, source_type, source_url, short_code) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    ).run(title, description || '', filename, path.basename(url), folder_id || null, server_id, userId, 'pending', 'remote', url, generateShortCode());
 
     const videoId = result.lastInsertRowid;
     const controller = { cancelled: false };
@@ -254,8 +253,8 @@ router.post('/videos/drive-upload', requireSessionUser, async (req, res) => {
     const userId = req.session?.user?.id || 1;
 
     const result = db.prepare(
-        'INSERT INTO videos (title, description, filename, original_name, folder_id, server_id, uploaded_by, status, source_type, source_url, idah) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-    ).run(title, description || '', filename, `drive_${fileId}`, folder_id || null, server_id, userId, 'pending', 'remote', sourceUrl, idah || null);
+        'INSERT INTO videos (title, description, filename, original_name, folder_id, server_id, uploaded_by, status, source_type, source_url, idah, short_code) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    ).run(title, description || '', filename, `drive_${fileId}`, folder_id || null, server_id, userId, 'pending', 'remote', sourceUrl, idah || null, generateShortCode());
 
     const videoId = result.lastInsertRowid;
 
