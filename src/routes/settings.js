@@ -21,14 +21,10 @@ router.get('/', requireAdmin, (req, res) => {
 
 // POST /settings — admin only
 router.post('/', requireAdmin, (req, res) => {
-    const { domain, api_key, stream_key, drive_service_account, clear_sa } = req.body;
+    const { domain, api_key, drive_service_account, clear_sa } = req.body;
     db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('domain', (domain || '').trim());
     if (api_key && api_key.trim()) {
         db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('api_key', api_key.trim());
-    }
-    // Lưu stream_key nếu được gửi
-    if (stream_key && stream_key.trim()) {
-        db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('stream_key', stream_key.trim());
     }
     // Lưu Service Account JSON (validate trước)
     let saError = null;

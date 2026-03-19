@@ -103,14 +103,6 @@ function initDatabase() {
   if (!domainSetting) {
     db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)').run('domain', 'http://localhost:3000');
   }
-  // Seed stream_key — dùng để bảo vệ link MP4 qua /stream/*
-  const streamKeySetting = db.prepare('SELECT key FROM settings WHERE key = ?').get('stream_key');
-  if (!streamKeySetting) {
-    const { randomBytes } = require('crypto');
-    const defaultKey = 'sk_' + randomBytes(16).toString('hex');
-    db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)').run('stream_key', defaultKey);
-    console.log('[DB] Default stream_key generated. Configure in /settings');
-  }
 }
 
 initDatabase();

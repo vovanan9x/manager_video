@@ -69,13 +69,9 @@ router.get('/videos/:id/link', requireSessionUser, (req, res) => {
     const settingDomain = db.prepare('SELECT value FROM settings WHERE key = ?').get('domain');
     const domain = settingDomain ? settingDomain.value.replace(/\/$/, '') : 'http://localhost:3000';
 
-    const streamKeySetting = db.prepare("SELECT value FROM settings WHERE key = 'stream_key'").get();
-    const streamKey = streamKeySetting ? streamKeySetting.value : '';
-
     let link = null;
-    if (video.remote_path) {
-        const keyParam = streamKey ? `?key=${encodeURIComponent(streamKey)}` : '';
-        link = `${domain}/stream/${video.remote_path.replace(/^\//, '')}${keyParam}`;
+    if (video.remote_path && video.base_url) {
+        link = video.base_url.replace(/\/$/, '') + '/' + video.remote_path.replace(/^\//, '');
     }
 
     res.json({
@@ -108,16 +104,9 @@ router.get('/videos/by-idah/:idah/link', requireSessionUser, (req, res) => {
 
     if (!video) return res.status(404).json({ error: 'Không tìm thấy video với IDAH: ' + idah });
 
-    const settingDomain = db.prepare('SELECT value FROM settings WHERE key = ?').get('domain');
-    const domain = settingDomain ? settingDomain.value.replace(/\/$/, '') : 'http://localhost:3000';
-
-    const streamKeySetting = db.prepare("SELECT value FROM settings WHERE key = 'stream_key'").get();
-    const streamKey = streamKeySetting ? streamKeySetting.value : '';
-
     let link = null;
-    if (video.remote_path) {
-        const keyParam = streamKey ? `?key=${encodeURIComponent(streamKey)}` : '';
-        link = `${domain}/stream/${video.remote_path.replace(/^\//, '')}${keyParam}`;
+    if (video.remote_path && video.base_url) {
+        link = video.base_url.replace(/\/$/, '') + '/' + video.remote_path.replace(/^\//, '');
     }
 
     res.json({
