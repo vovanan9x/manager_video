@@ -47,7 +47,7 @@ app.use('/api', (req, res, next) => {
     next();
 });
 app.use('/api', require('./routes/api'));
-// app.use('/stream', require('./routes/stream')); // Stream proxy disabled
+app.use('/stream', require('./routes/stream'));
 app.use('/errors', require('./routes/errors'));
 
 // API Docs page — admin only

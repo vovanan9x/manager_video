@@ -30,6 +30,22 @@
                                 </div>
 
                                 <div class="form-group">
+                                    <label class="form-label">🔐 Stream Key (bảo vệ link MP4)</label>
+                                    <div class="form-row">
+                                        <input type="text" id="streamKeyInput" class="form-control"
+                                            value="<%= settings.stream_key || '' %>" readonly
+                                            placeholder="Chưa có stream key">
+                                        <button type="button" class="btn btn-outline" onclick="generateStreamKey()">🔄 Tạo mới</button>
+                                    </div>
+                                    <input type="hidden" name="stream_key" id="streamKeyHidden"
+                                        value="<%= settings.stream_key || '' %>">
+                                    <p class="form-hint" style="color: var(--orange, #f59e0b)">
+                                        ⚠️ Thay đổi key sẽ làm <strong>tất cả link MP4 cũ hết hạn</strong> ngay lập tức.
+                                        Link mới sẽ có dạng: <code>&lt;domain&gt;/stream/&lt;file&gt;.mp4?key=&lt;key&gt;</code>
+                                    </p>
+                                </div>
+
+                                <div class="form-group">
                                     <label class="form-label">🔑 API Key (để dùng API từ bên ngoài)</label>
                                     <div class="form-row">
                                         <input type="text" id="apiKeyInput" class="form-control"
@@ -108,6 +124,11 @@
             const key = 'vmgr_' + Array.from(crypto.getRandomValues(new Uint8Array(20))).map(b => b.toString(16).padStart(2, '0')).join('');
             document.getElementById('apiKeyInput').value = key;
             document.getElementById('apiKeyHidden').value = key;
+        }
+        function generateStreamKey() {
+            const key = 'sk_' + Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b => b.toString(16).padStart(2, '0')).join('');
+            document.getElementById('streamKeyInput').value = key;
+            document.getElementById('streamKeyHidden').value = key;
         }
     </script>
 

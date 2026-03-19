@@ -103,6 +103,16 @@ async function proxyStream(req, res, remoteUrl, username, password) {
 
 // Handle all GET requests — req.path will be the part after /stream
 router.use('/', async (req, res) => {
+    // ── Stream Key validation ─────────────────────────────────────────────────
+    const streamKeySetting = db.prepare("SELECT value FROM settings WHERE key = 'stream_key'").get();
+    if (streamKeySetting && streamKeySetting.value) {
+        const providedKey = req.query.key;
+        if (!providedKey || providedKey !== streamKeySetting.value) {
+            return res.status(403).send('403 Forbidden: Invalid or missing stream key');
+        }
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
     // Strip leading slash
     const remotePath = req.path.replace(/^\//, '');
     if (!remotePath) return res.status(400).send('Missing path');
@@ -126,11 +136,9 @@ router.use('/', async (req, res) => {
         return res.status(404).send('Video not found');
     }
 
-    // ── LOCAL SERVER ────────────────────────────────────────────────────────
+    // ── LOCAL SERVER — phục vụ trực tiếp từ disk ────────────────────────────
     if (video.server_type === 'local') {
         const filePath = path.join(video.root_path, remotePath);
-
-        // Security: ensure resolved path stays inside root_path
         const rootReal = path.resolve(video.root_path);
         const fileReal = path.resolve(filePath);
         if (!fileReal.startsWith(rootReal)) {
@@ -169,13 +177,12 @@ router.use('/', async (req, res) => {
         return;
     }
 
-    // ── SFTP / HTTP SERVER (Storage Box or remote) ─────────────────────────
-    // Build the remote URL and proxy it with Basic Auth credentials.
+    // ── SFTP / HTTP SERVER — validate key rồi redirect về CDN ──────────────
+    // App chỉ kiểm tra key, còn video stream trực tiếp từ CDN đến client.
     let remoteUrl;
     if (video.server_type === 'sftp') {
         remoteUrl = buildStorageBoxUrl(video, remotePath);
     } else if (video.server_type === 'http') {
-        // HTTP upload servers: construct URL from base_url
         if (video.base_url) {
             remoteUrl = video.base_url.replace(/\/$/, '') + '/' + remotePath.replace(/^\//, '');
         } else {
@@ -185,7 +192,10 @@ router.use('/', async (req, res) => {
         return res.status(400).send('Unknown server type: ' + video.server_type);
     }
 
-    await proxyStream(req, res, remoteUrl, video.username, video.password);
+    // 302 redirect — server không tốn bandwidth, video phát thẳng từ CDN
+    return res.redirect(302, remoteUrl);
 });
 
 module.exports = router;
+
+
