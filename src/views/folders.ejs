@@ -1118,6 +1118,14 @@
                                     var checked = getCheckedFolders();
                                     if (!checked.length) return;
 
+                                    // Enforce same-server: all selected folders must be on the same server
+                                    var serverIds = new Set(checked.map(function(c) { return c.serverId; }));
+                                    if (serverIds.size > 1) {
+                                        alert('⚠️ Chỉ có thể di chuyển thư mục trong cùng một server.\nVui lòng chỉ chọn thư mục từ một server.');
+                                        return;
+                                    }
+                                    var serverId = checked[0].serverId;
+
                                     var selectedIds = new Set(checked.map(function(c) { return c.id; }));
 
                                     var excluded = new Set();
@@ -1132,12 +1140,12 @@
                                     });
                                     document.getElementById('bulkMoveSummary').textContent = '📋 ' + names.join(', ');
 
-                                    // Populate target picker — exclude selected and their descendants
+                                    // Populate target picker — same server only
                                     populateFolderPicker(
                                         document.getElementById('bulkMovePickerContainer'),
                                         document.getElementById('bulkMoveTargetValue'),
                                         document.getElementById('bulkMoveSearch'),
-                                        excluded, null
+                                        excluded, serverId
                                     );
 
                                     document.getElementById('bulkMoveModal').classList.add('is-open');

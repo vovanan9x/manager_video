@@ -242,6 +242,16 @@ router.post('/bulk-move', requireAuth, (req, res) => {
         targetServerId = newParent.server_id;
     }
 
+    // Enforce same-server constraint
+    if (targetServerId !== null) {
+        for (const fid of rawIds) {
+            const folder = db.prepare('SELECT server_id FROM folders WHERE id = ?').get(fid);
+            if (folder && folder.server_id !== targetServerId) {
+                return res.json({ success: false, error: 'Không thể di chuyển thư mục sang server khác' });
+            }
+        }
+    }
+
     // Collect all descendants of every selected folder to prevent circular moves
     function collectDescendantIds(folderId) {
         const ids = new Set();
@@ -277,14 +287,11 @@ router.post('/bulk-move', requireAuth, (req, res) => {
             const currentParent = folder.parent_id === null ? null : folder.parent_id;
             if (newParentId === currentParent) { results.skipped++; continue; }
 
-            // When moving to root, keep same server; when moving to parent, use parent's server
-            const effectiveServerId = targetServerId || folder.server_id;
-
             const newPath = newBasePath ? `${newBasePath}/${folder.name}` : folder.name;
 
             // Check duplicate
             const existing = db.prepare('SELECT id FROM folders WHERE path = ? AND server_id = ? AND id != ?')
-                .get(newPath, effectiveServerId, folderId);
+                .get(newPath, folder.server_id, folderId);
             if (existing) {
                 results.errors.push(`"${folder.name}" đã tồn tại ở vị trí mới`);
                 continue;
@@ -292,9 +299,9 @@ router.post('/bulk-move', requireAuth, (req, res) => {
 
             const oldPath = folder.path;
 
-            // Update this folder
-            db.prepare('UPDATE folders SET parent_id = ?, path = ?, server_id = ? WHERE id = ?')
-                .run(newParentId, newPath, effectiveServerId, folderId);
+            // Update this folder (keep same server_id)
+            db.prepare('UPDATE folders SET parent_id = ?, path = ? WHERE id = ?')
+                .run(newParentId, newPath, folderId);
 
             // Update all descendants' paths
             const children = db.prepare('SELECT * FROM folders WHERE path LIKE ?').all(oldPath + '/%');
