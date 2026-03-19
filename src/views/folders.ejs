@@ -498,6 +498,21 @@
             color: var(--text-muted);
             font-size: 0.82rem;
         }
+        .fp-server-header {
+            font-size: 0.72rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+            padding: 6px 10px 3px;
+            background: rgba(255,255,255,.02);
+            border-top: 1px solid var(--border-color);
+            cursor: default;
+            user-select: none;
+        }
+        .fp-server-header:first-child {
+            border-top: none;
+        }
     </style>
 
     <div class="page-header">
@@ -850,10 +865,33 @@
                                         return true;
                                     });
 
-                                    var tree = buildFolderTree(available);
                                     var html = '<div class="fp-root-option fp-selected" data-id="" onclick="selectPickerItem(this)">📂 Root (không có cha)</div>';
-                                    html += renderPickerTree(tree, 0);
-                                    if (tree.length === 0 && available.length === 0) {
+
+                                    if (filterServerId != null) {
+                                        // Single server: flat tree
+                                        var tree = buildFolderTree(available);
+                                        html += renderPickerTree(tree, 0);
+                                    } else {
+                                        // Multi-server: group by server
+                                        var serverMap = {};
+                                        var serverOrder = [];
+                                        available.forEach(function(f) {
+                                            var sid = f.server_id;
+                                            if (!serverMap[sid]) {
+                                                serverMap[sid] = { name: f.server_name || ('Server #' + sid), folders: [] };
+                                                serverOrder.push(sid);
+                                            }
+                                            serverMap[sid].folders.push(f);
+                                        });
+                                        serverOrder.forEach(function(sid) {
+                                            var group = serverMap[sid];
+                                            html += '<div class="fp-server-header" data-sg="' + sid + '">🖥️ ' + group.name + '</div>';
+                                            var tree = buildFolderTree(group.folders);
+                                            html += '<div class="fp-server-section" data-sg="' + sid + '">' + renderPickerTree(tree, 0) + '</div>';
+                                        });
+                                    }
+
+                                    if (available.length === 0) {
                                         html += '<div class="fp-no-results">Không có thư mục nào</div>';
                                     }
                                     container.innerHTML = html;
@@ -865,19 +903,26 @@
                                         var items = container.querySelectorAll('.fp-item');
                                         var childrenDivs = container.querySelectorAll('.fp-children');
                                         if (!q) {
-                                            // Reset: show all items, collapse children
                                             items.forEach(function(el) { el.style.display = ''; });
                                             childrenDivs.forEach(function(el) { el.classList.add('fp-hidden'); });
                                             container.querySelectorAll('.fp-toggle').forEach(function(t) { t.classList.remove('fp-open'); });
+                                            container.querySelectorAll('.fp-server-header').forEach(function(h) { h.style.display = ''; });
+                                            container.querySelectorAll('.fp-server-section').forEach(function(s) { s.style.display = ''; });
                                             return;
                                         }
-                                        // Show all, expand all for filtering
                                         childrenDivs.forEach(function(el) { el.classList.remove('fp-hidden'); });
                                         container.querySelectorAll('.fp-toggle').forEach(function(t) { t.classList.add('fp-open'); });
                                         items.forEach(function(el) {
                                             var name = (el.dataset.name || '').toLowerCase();
                                             var path = (el.dataset.path || '').toLowerCase();
                                             el.style.display = (name.indexOf(q) >= 0 || path.indexOf(q) >= 0) ? '' : 'none';
+                                        });
+                                        // Hide empty server sections
+                                        container.querySelectorAll('.fp-server-section').forEach(function(sec) {
+                                            var hasVisible = sec.querySelector('.fp-item:not([style*="display: none"])');
+                                            sec.style.display = hasVisible ? '' : 'none';
+                                            var header = container.querySelector('.fp-server-header[data-sg="' + sec.dataset.sg + '"]');
+                                            if (header) header.style.display = hasVisible ? '' : 'none';
                                         });
                                     };
                                 }
