@@ -638,34 +638,79 @@
                                     }, 80);
                                 }
 
+                                // ── Shared: Build tree-structured <select> options ──────
+                                function populateFolderSelect(sel, excludedSet, filterServerId) {
+                                    sel.innerHTML = '<option value="">📂 Root (không có cha)</option>';
+
+                                    var available = folderData.filter(function(f) {
+                                        if (excludedSet.has(f.id)) return false;
+                                        if (filterServerId && f.server_id !== filterServerId) return false;
+                                        return true;
+                                    });
+
+                                    // Group by server
+                                    var serverMap = {};
+                                    var serverOrder = [];
+                                    available.forEach(function(f) {
+                                        if (!serverMap[f.server_id]) {
+                                            serverMap[f.server_id] = { name: f.server_name || ('Server #' + f.server_id), folders: [] };
+                                            serverOrder.push(f.server_id);
+                                        }
+                                        serverMap[f.server_id].folders.push(f);
+                                    });
+
+                                    // Build tree per server
+                                    serverOrder.forEach(function(sid) {
+                                        var group = serverMap[sid];
+                                        var optgroup = document.createElement('optgroup');
+                                        optgroup.label = '🖥️ ' + group.name;
+
+                                        // Build recursive tree
+                                        var byId = {};
+                                        group.folders.forEach(function(f) { byId[f.id] = { id: f.id, name: f.name, path: f.path, parent_id: f.parent_id, children: [] }; });
+                                        var roots = [];
+                                        group.folders.forEach(function(f) {
+                                            if (f.parent_id && byId[f.parent_id]) byId[f.parent_id].children.push(byId[f.id]);
+                                            else roots.push(byId[f.id]);
+                                        });
+
+                                        function addOptions(nodes, depth) {
+                                            nodes.sort(function(a, b) { return a.name.localeCompare(b.name); });
+                                            nodes.forEach(function(node, idx) {
+                                                var opt = document.createElement('option');
+                                                opt.value = node.id;
+                                                var indent = '';
+                                                for (var d = 0; d < depth; d++) indent += '    ';
+                                                var branch = depth > 0 ? (idx === nodes.length - 1 ? '└─ ' : '├─ ') : '';
+                                                opt.textContent = indent + branch + '📁 ' + node.name;
+                                                opt.title = node.path;
+                                                optgroup.appendChild(opt);
+                                                if (node.children.length > 0) addOptions(node.children, depth + 1);
+                                            });
+                                        }
+                                        addOptions(roots, 0);
+                                        sel.appendChild(optgroup);
+                                    });
+                                }
+
+                                function collectDescendants(fid) {
+                                    var result = new Set();
+                                    result.add(fid);
+                                    folderData.forEach(function (f) {
+                                        if (f.parent_id === fid) {
+                                            collectDescendants(f.id).forEach(function (d) { result.add(d); });
+                                        }
+                                    });
+                                    return result;
+                                }
+
                                 function openMoveModal(id, name, path, serverId) {
                                     document.getElementById('moveForm').action = '/folders/move/' + id;
                                     document.getElementById('moveBreadcrumb').textContent = '> ' + path;
 
-                                    // Collect all descendant IDs to exclude
-                                    function collectDescendants(fid) {
-                                        var result = new Set();
-                                        result.add(fid);
-                                        folderData.forEach(function (f) {
-                                            if (f.parent_id === fid) {
-                                                collectDescendants(f.id).forEach(function (d) { result.add(d); });
-                                            }
-                                        });
-                                        return result;
-                                    }
                                     var excluded = collectDescendants(id);
-
                                     var sel = document.getElementById('moveParentSelect');
-                                    sel.innerHTML = '<option value="">📂 Root (không có cha)</option>';
-                                    folderData
-                                        .filter(function (f) { return f.server_id === serverId && !excluded.has(f.id); })
-                                        .sort(function (a, b) { return a.path.localeCompare(b.path); })
-                                        .forEach(function (f) {
-                                            var opt = document.createElement('option');
-                                            opt.value = f.id;
-                                            opt.textContent = '📁 ' + f.path;
-                                            sel.appendChild(opt);
-                                        });
+                                    populateFolderSelect(sel, excluded, serverId);
 
                                     document.getElementById('moveModal').classList.add('is-open');
                                     setTimeout(function () { sel.focus(); }, 80);
@@ -764,18 +809,6 @@
 
                                     var selectedIds = new Set(checked.map(function(c) { return c.id; }));
 
-                                    // Collect all descendant IDs of selected folders
-                                    function collectDescendants(fid) {
-                                        var result = new Set();
-                                        result.add(fid);
-                                        folderData.forEach(function (f) {
-                                            if (f.parent_id === fid) {
-                                                collectDescendants(f.id).forEach(function (d) { result.add(d); });
-                                            }
-                                        });
-                                        return result;
-                                    }
-
                                     var excluded = new Set();
                                     selectedIds.forEach(function(fid) {
                                         collectDescendants(fid).forEach(function(d) { excluded.add(d); });
@@ -790,16 +823,7 @@
 
                                     // Populate target select — exclude selected and their descendants
                                     var sel = document.getElementById('bulkMoveTarget');
-                                    sel.innerHTML = '<option value="">📂 Root (không có cha)</option>';
-                                    folderData
-                                        .filter(function(f) { return !excluded.has(f.id); })
-                                        .sort(function(a, b) { return a.path.localeCompare(b.path); })
-                                        .forEach(function(f) {
-                                            var opt = document.createElement('option');
-                                            opt.value = f.id;
-                                            opt.textContent = '📁 ' + f.path;
-                                            sel.appendChild(opt);
-                                        });
+                                    populateFolderSelect(sel, excluded, null);
 
                                     document.getElementById('bulkMoveModal').classList.add('is-open');
                                     setTimeout(function() { sel.focus(); }, 80);
