@@ -97,6 +97,32 @@
             padding: 0.5rem 1rem;
             background: rgba(255, 255, 255, 0.03);
             border-bottom: 1px solid var(--border-color);
+            cursor: pointer;
+            user-select: none;
+            transition: background .12s;
+        }
+
+        .server-group-label:hover {
+            background: rgba(255, 255, 255, 0.06);
+        }
+
+        .server-group-label .sg-chevron {
+            font-size: 0.6rem;
+            transition: transform .2s;
+            color: var(--text-muted);
+            flex-shrink: 0;
+        }
+
+        .server-group-label .sg-chevron.sg-open {
+            transform: rotate(90deg);
+        }
+
+        .server-group-content {
+            /* visible by default */
+        }
+
+        .server-group-content.sg-collapsed {
+            display: none;
         }
 
         /* ===== Folder Tree ===== */
@@ -405,20 +431,25 @@
                                     <% } else { %>
                                         <% folderTrees.forEach(function(treeData) { %>
                                             <div class="server-group">
-                                                <div class="server-group-label">
+                                                <div class="server-group-label" onclick="toggleServerGroup(this)" data-server-id="<%= treeData.server.id %>">
+                                                    <span class="sg-chevron">▶</span>
                                                     🖥️ <%= treeData.server.name %>
                                                         <span
                                                             style="font-weight:400;text-transform:none;letter-spacing:0;opacity:.6;margin-left:4px">
                                                             (<%= treeData.server.type %>)
                                                         </span>
+                                                        <span style="font-weight:400;text-transform:none;letter-spacing:0;opacity:.5;margin-left:2px;font-size:.72rem">
+                                                            — <%= treeData.roots.length %> thư mục
+                                                        </span>
                                                         <% if (isAdmin) { %>
                                                             <button class="action-btn success"
                                                                 style="opacity:1;margin-left:auto"
-                                                                onclick="openCreateModal(null,null,<%- treeData.server.id %>)"
+                                                                onclick="event.stopPropagation();openCreateModal(null,null,<%- treeData.server.id %>)"
                                                                 title="Tạo thư mục gốc trên server này">➕ Tạo thư mục
                                                                 gốc</button>
                                                             <% } %>
                                                 </div>
+                                                <div class="server-group-content sg-collapsed" data-sg-server="<%= treeData.server.id %>">
                                                 <% if (treeData.roots.length===0) { %>
                                                     <div
                                                         style="padding:.75rem 1rem;font-size:.82rem;color:var(--text-muted);font-style:italic">
@@ -428,6 +459,7 @@
                                                         <ul class="folder-tree"><%- renderTree(treeData.roots,
                                                                 treeData.server.id) %></ul>
                                                         <% } %>
+                                                </div>
                                             </div>
                                             <% }); %>
                                                 <% } %>
@@ -717,6 +749,7 @@
                                 }
 
                                 var STORAGE_KEY = 'folderTreeOpen';
+                                var SG_STORAGE_KEY = 'serverGroupOpen';
 
                                 function getOpenSet() {
                                     try { return new Set(JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')); }
@@ -725,6 +758,28 @@
 
                                 function saveOpenSet(set) {
                                     try { localStorage.setItem(STORAGE_KEY, JSON.stringify([...set])); } catch (e) { }
+                                }
+
+                                function getSgOpenSet() {
+                                    try { return new Set(JSON.parse(localStorage.getItem(SG_STORAGE_KEY) || '[]')); }
+                                    catch (e) { return new Set(); }
+                                }
+
+                                function saveSgOpenSet(set) {
+                                    try { localStorage.setItem(SG_STORAGE_KEY, JSON.stringify([...set])); } catch (e) { }
+                                }
+
+                                function toggleServerGroup(label) {
+                                    var serverId = label.dataset.serverId;
+                                    var content = document.querySelector('.server-group-content[data-sg-server="' + serverId + '"]');
+                                    var chevron = label.querySelector('.sg-chevron');
+                                    if (!content) return;
+                                    var isCollapsed = content.classList.toggle('sg-collapsed');
+                                    if (chevron) chevron.classList.toggle('sg-open', !isCollapsed);
+                                    var sgSet = getSgOpenSet();
+                                    if (isCollapsed) sgSet.delete(serverId);
+                                    else sgSet.add(serverId);
+                                    saveSgOpenSet(sgSet);
                                 }
 
                                 function toggleNode(btn) {
@@ -741,6 +796,18 @@
                                 }
 
                                 function expandAll() {
+                                    // Expand server groups
+                                    document.querySelectorAll('.server-group-content').forEach(function (el) {
+                                        el.classList.remove('sg-collapsed');
+                                    });
+                                    document.querySelectorAll('.sg-chevron').forEach(function (c) { c.classList.add('sg-open'); });
+                                    var sgSet = new Set();
+                                    document.querySelectorAll('.server-group-content').forEach(function (el) {
+                                        sgSet.add(el.dataset.sgServer);
+                                    });
+                                    saveSgOpenSet(sgSet);
+
+                                    // Expand folder nodes
                                     var openSet = getOpenSet();
                                     document.querySelectorAll('.children-list').forEach(function (ul) {
                                         ul.classList.remove('collapsed');
@@ -752,6 +819,14 @@
                                 }
 
                                 function collapseAll() {
+                                    // Collapse server groups
+                                    document.querySelectorAll('.server-group-content').forEach(function (el) {
+                                        el.classList.add('sg-collapsed');
+                                    });
+                                    document.querySelectorAll('.sg-chevron').forEach(function (c) { c.classList.remove('sg-open'); });
+                                    saveSgOpenSet(new Set());
+
+                                    // Collapse folder nodes
                                     document.querySelectorAll('.children-list').forEach(function (ul) {
                                         ul.classList.add('collapsed');
                                     });
@@ -759,8 +834,21 @@
                                     saveOpenSet(new Set());
                                 }
 
-                                // Restore saved states on load (inline script runs after DOM is ready)
+                                // Restore saved states on load
                                 (function restoreTree() {
+                                    // Restore server groups
+                                    var sgSet = getSgOpenSet();
+                                    sgSet.forEach(function (serverId) {
+                                        var content = document.querySelector('.server-group-content[data-sg-server="' + serverId + '"]');
+                                        if (content) content.classList.remove('sg-collapsed');
+                                        var label = document.querySelector('.server-group-label[data-server-id="' + serverId + '"]');
+                                        if (label) {
+                                            var chevron = label.querySelector('.sg-chevron');
+                                            if (chevron) chevron.classList.add('sg-open');
+                                        }
+                                    });
+
+                                    // Restore folder nodes
                                     var openSet = getOpenSet();
                                     openSet.forEach(function (folderId) {
                                         var btn = document.querySelector('.toggle-btn[data-folder-id="' + folderId + '"]');
