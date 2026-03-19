@@ -366,6 +366,138 @@
             color: var(--text-muted);
             margin-top: 0.35rem;
         }
+
+        /* ===== Custom Checkbox ===== */
+        .custom-cb {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            cursor: pointer;
+            margin-right: 6px;
+            flex-shrink: 0;
+        }
+        .custom-cb input {
+            position: absolute;
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .custom-cb .cb-mark {
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255,255,255,.25);
+            border-radius: 4px;
+            background: transparent;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all .15s ease;
+            position: relative;
+        }
+        .custom-cb:hover .cb-mark {
+            border-color: rgba(99,102,241,.6);
+            background: rgba(99,102,241,.08);
+        }
+        .custom-cb input:checked + .cb-mark {
+            background: linear-gradient(135deg, #6366f1, #818cf8);
+            border-color: #6366f1;
+            box-shadow: 0 0 6px rgba(99,102,241,.35);
+        }
+        .custom-cb input:checked + .cb-mark::after {
+            content: '';
+            width: 4px;
+            height: 8px;
+            border: solid #fff;
+            border-width: 0 2px 2px 0;
+            transform: rotate(45deg);
+            margin-top: -1px;
+        }
+
+        /* ===== Folder Picker (custom tree) ===== */
+        .folder-picker-search {
+            width: 100%;
+            padding: 6px 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            font-size: 0.82rem;
+            margin-bottom: 0.5rem;
+            outline: none;
+        }
+        .folder-picker-search:focus {
+            border-color: rgba(99,102,241,.5);
+        }
+        .folder-picker-container {
+            max-height: 280px;
+            overflow-y: auto;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--bg-tertiary);
+        }
+        .fp-item {
+            display: flex;
+            align-items: center;
+            padding: 4px 8px;
+            cursor: pointer;
+            font-size: 0.82rem;
+            transition: background .1s;
+            border-radius: 4px;
+            margin: 1px 4px;
+            color: var(--text-primary);
+        }
+        .fp-item:hover {
+            background: rgba(255,255,255,.06);
+        }
+        .fp-item.fp-selected {
+            background: rgba(99,102,241,.2);
+            outline: 1px solid rgba(99,102,241,.4);
+        }
+        .fp-item .fp-toggle {
+            width: 18px;
+            height: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.55rem;
+            color: var(--text-muted);
+            cursor: pointer;
+            flex-shrink: 0;
+            border-radius: 3px;
+            transition: transform .15s;
+        }
+        .fp-item .fp-toggle:hover {
+            background: rgba(255,255,255,.08);
+        }
+        .fp-item .fp-toggle.fp-open {
+            transform: rotate(90deg);
+        }
+        .fp-children {
+            padding-left: 16px;
+        }
+        .fp-children.fp-hidden {
+            display: none;
+        }
+        .fp-root-option {
+            padding: 6px 10px;
+            cursor: pointer;
+            font-size: 0.82rem;
+            color: var(--text-primary);
+            border-bottom: 1px solid var(--border-color);
+            transition: background .1s;
+        }
+        .fp-root-option:hover {
+            background: rgba(255,255,255,.06);
+        }
+        .fp-root-option.fp-selected {
+            background: rgba(99,102,241,.2);
+        }
+        .fp-no-results {
+            padding: 1rem;
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 0.82rem;
+        }
     </style>
 
     <div class="page-header">
@@ -547,9 +679,9 @@
                                             <div class="modal-breadcrumb" id="moveBreadcrumb"></div>
                                             <div class="form-group" style="margin-top:.75rem">
                                                 <label class="form-label">Thư mục cha mới *</label>
-                                                <select name="new_parent_id" id="moveParentSelect" class="form-control">
-                                                    <option value="">📂 Root (không có cha)</option>
-                                                </select>
+                                                <input type="hidden" name="new_parent_id" id="moveParentValue" value="">
+                                                <input type="text" class="folder-picker-search" id="moveSearch" placeholder="🔍 Tìm thư mục..." autocomplete="off">
+                                                <div class="folder-picker-container" id="movePickerContainer"></div>
                                             </div>
                                             <p class="hint-text">⚠️ Toàn bộ thư mục con sẽ được cập nhật path theo.</p>
                                         </div>
@@ -573,9 +705,9 @@
                                         <div class="modal-breadcrumb" id="bulkMoveSummary"></div>
                                         <div class="form-group" style="margin-top:.75rem">
                                             <label class="form-label">Thư mục đích *</label>
-                                            <select id="bulkMoveTarget" class="form-control">
-                                                <option value="">📂 Root (không có cha)</option>
-                                            </select>
+                                            <input type="hidden" id="bulkMoveTargetValue" value="">
+                                            <input type="text" class="folder-picker-search" id="bulkMoveSearch" placeholder="🔍 Tìm thư mục..." autocomplete="off">
+                                            <div class="folder-picker-container" id="bulkMovePickerContainer"></div>
                                         </div>
                                         <p class="hint-text">⚠️ Toàn bộ thư mục con sẽ được cập nhật path theo.</p>
                                     </div>
@@ -670,59 +802,101 @@
                                     }, 80);
                                 }
 
-                                // ── Shared: Build tree-structured <select> options ──────
-                                function populateFolderSelect(sel, excludedSet, filterServerId) {
-                                    sel.innerHTML = '<option value="">📂 Root (không có cha)</option>';
+                                // ── Shared: Build tree picker ──────
+                                function buildFolderTree(folders) {
+                                    var byId = {};
+                                    folders.forEach(function(f) { byId[f.id] = { id: f.id, name: f.name, path: f.path, parent_id: f.parent_id, children: [] }; });
+                                    var roots = [];
+                                    folders.forEach(function(f) {
+                                        if (f.parent_id && byId[f.parent_id]) byId[f.parent_id].children.push(byId[f.id]);
+                                        else roots.push(byId[f.id]);
+                                    });
+                                    roots.sort(function(a, b) { return a.name.localeCompare(b.name); });
+                                    return roots;
+                                }
+
+                                function renderPickerTree(nodes, depth) {
+                                    var html = '';
+                                    nodes.sort(function(a, b) { return a.name.localeCompare(b.name); });
+                                    nodes.forEach(function(node) {
+                                        var hasKids = node.children && node.children.length > 0;
+                                        var pad = depth * 16;
+                                        html += '<div class="fp-item" data-id="' + node.id + '" data-name="' + node.name + '" data-path="' + node.path + '" style="padding-left:' + (8 + pad) + 'px" onclick="selectPickerItem(this)" title="' + node.path + '">';
+                                        if (hasKids) {
+                                            html += '<span class="fp-toggle" onclick="event.stopPropagation();togglePickerNode(this)">▶</span>';
+                                        } else {
+                                            html += '<span style="width:18px;flex-shrink:0"></span>';
+                                        }
+                                        html += '<span style="margin:0 4px">📁</span>' + node.name;
+                                        html += '</div>';
+                                        if (hasKids) {
+                                            html += '<div class="fp-children fp-hidden">' + renderPickerTree(node.children, depth + 1) + '</div>';
+                                        }
+                                    });
+                                    return html;
+                                }
+
+                                var _activePickerContainer = null;
+                                var _activePickerHidden = null;
+
+                                function populateFolderPicker(container, hiddenInput, searchInput, excludedSet, filterServerId) {
+                                    _activePickerContainer = container;
+                                    _activePickerHidden = hiddenInput;
+                                    hiddenInput.value = '';
 
                                     var available = folderData.filter(function(f) {
                                         if (excludedSet.has(f.id)) return false;
-                                        if (filterServerId && f.server_id !== filterServerId) return false;
+                                        if (filterServerId != null && Number(f.server_id) !== Number(filterServerId)) return false;
                                         return true;
                                     });
 
-                                    // Group by server
-                                    var serverMap = {};
-                                    var serverOrder = [];
-                                    available.forEach(function(f) {
-                                        if (!serverMap[f.server_id]) {
-                                            serverMap[f.server_id] = { name: f.server_name || ('Server #' + f.server_id), folders: [] };
-                                            serverOrder.push(f.server_id);
+                                    var tree = buildFolderTree(available);
+                                    var html = '<div class="fp-root-option fp-selected" data-id="" onclick="selectPickerItem(this)">📂 Root (không có cha)</div>';
+                                    html += renderPickerTree(tree, 0);
+                                    if (tree.length === 0 && available.length === 0) {
+                                        html += '<div class="fp-no-results">Không có thư mục nào</div>';
+                                    }
+                                    container.innerHTML = html;
+
+                                    // Wire search
+                                    searchInput.value = '';
+                                    searchInput.oninput = function() {
+                                        var q = this.value.trim().toLowerCase();
+                                        var items = container.querySelectorAll('.fp-item');
+                                        var childrenDivs = container.querySelectorAll('.fp-children');
+                                        if (!q) {
+                                            // Reset: show all items, collapse children
+                                            items.forEach(function(el) { el.style.display = ''; });
+                                            childrenDivs.forEach(function(el) { el.classList.add('fp-hidden'); });
+                                            container.querySelectorAll('.fp-toggle').forEach(function(t) { t.classList.remove('fp-open'); });
+                                            return;
                                         }
-                                        serverMap[f.server_id].folders.push(f);
-                                    });
-
-                                    // Build tree per server
-                                    serverOrder.forEach(function(sid) {
-                                        var group = serverMap[sid];
-                                        var optgroup = document.createElement('optgroup');
-                                        optgroup.label = '🖥️ ' + group.name;
-
-                                        // Build recursive tree
-                                        var byId = {};
-                                        group.folders.forEach(function(f) { byId[f.id] = { id: f.id, name: f.name, path: f.path, parent_id: f.parent_id, children: [] }; });
-                                        var roots = [];
-                                        group.folders.forEach(function(f) {
-                                            if (f.parent_id && byId[f.parent_id]) byId[f.parent_id].children.push(byId[f.id]);
-                                            else roots.push(byId[f.id]);
+                                        // Show all, expand all for filtering
+                                        childrenDivs.forEach(function(el) { el.classList.remove('fp-hidden'); });
+                                        container.querySelectorAll('.fp-toggle').forEach(function(t) { t.classList.add('fp-open'); });
+                                        items.forEach(function(el) {
+                                            var name = (el.dataset.name || '').toLowerCase();
+                                            var path = (el.dataset.path || '').toLowerCase();
+                                            el.style.display = (name.indexOf(q) >= 0 || path.indexOf(q) >= 0) ? '' : 'none';
                                         });
+                                    };
+                                }
 
-                                        function addOptions(nodes, depth) {
-                                            nodes.sort(function(a, b) { return a.name.localeCompare(b.name); });
-                                            nodes.forEach(function(node, idx) {
-                                                var opt = document.createElement('option');
-                                                opt.value = node.id;
-                                                var indent = '';
-                                                for (var d = 0; d < depth; d++) indent += '    ';
-                                                var branch = depth > 0 ? (idx === nodes.length - 1 ? '└─ ' : '├─ ') : '';
-                                                opt.textContent = indent + branch + '📁 ' + node.name;
-                                                opt.title = node.path;
-                                                optgroup.appendChild(opt);
-                                                if (node.children.length > 0) addOptions(node.children, depth + 1);
-                                            });
-                                        }
-                                        addOptions(roots, 0);
-                                        sel.appendChild(optgroup);
-                                    });
+                                function selectPickerItem(el) {
+                                    if (!_activePickerContainer) return;
+                                    // Deselect all in this container
+                                    _activePickerContainer.querySelectorAll('.fp-selected').forEach(function(s) { s.classList.remove('fp-selected'); });
+                                    el.classList.add('fp-selected');
+                                    _activePickerHidden.value = el.dataset.id || '';
+                                }
+
+                                function togglePickerNode(toggle) {
+                                    var item = toggle.closest('.fp-item');
+                                    var children = item.nextElementSibling;
+                                    if (children && children.classList.contains('fp-children')) {
+                                        children.classList.toggle('fp-hidden');
+                                        toggle.classList.toggle('fp-open');
+                                    }
                                 }
 
                                 function collectDescendants(fid) {
@@ -741,11 +915,15 @@
                                     document.getElementById('moveBreadcrumb').textContent = '> ' + path;
 
                                     var excluded = collectDescendants(id);
-                                    var sel = document.getElementById('moveParentSelect');
-                                    populateFolderSelect(sel, excluded, serverId);
+                                    populateFolderPicker(
+                                        document.getElementById('movePickerContainer'),
+                                        document.getElementById('moveParentValue'),
+                                        document.getElementById('moveSearch'),
+                                        excluded, serverId
+                                    );
 
                                     document.getElementById('moveModal').classList.add('is-open');
-                                    setTimeout(function () { sel.focus(); }, 80);
+                                    setTimeout(function () { document.getElementById('moveSearch').focus(); }, 80);
                                 }
 
                                 var STORAGE_KEY = 'folderTreeOpen';
@@ -909,12 +1087,16 @@
                                     });
                                     document.getElementById('bulkMoveSummary').textContent = '📋 ' + names.join(', ');
 
-                                    // Populate target select — exclude selected and their descendants
-                                    var sel = document.getElementById('bulkMoveTarget');
-                                    populateFolderSelect(sel, excluded, null);
+                                    // Populate target picker — exclude selected and their descendants
+                                    populateFolderPicker(
+                                        document.getElementById('bulkMovePickerContainer'),
+                                        document.getElementById('bulkMoveTargetValue'),
+                                        document.getElementById('bulkMoveSearch'),
+                                        excluded, null
+                                    );
 
                                     document.getElementById('bulkMoveModal').classList.add('is-open');
-                                    setTimeout(function() { sel.focus(); }, 80);
+                                    setTimeout(function() { document.getElementById('bulkMoveSearch').focus(); }, 80);
                                 }
 
                                 async function submitBulkMove() {
@@ -925,7 +1107,7 @@
                                     btn.disabled = true;
                                     btn.textContent = '⏳ Đang xử lý...';
 
-                                    var targetId = document.getElementById('bulkMoveTarget').value;
+                                    var targetId = document.getElementById('bulkMoveTargetValue').value;
 
                                     try {
                                         var res = await fetch('/folders/bulk-move', {
