@@ -46,6 +46,11 @@ router.get('/', requireAuth, (req, res) => {
         conditions.push('v.uploaded_by = ?');
         params.push(req.query.user_id);
     }
+    if (req.query.search) {
+        conditions.push('(v.title LIKE ? OR v.filename LIKE ? OR v.idah LIKE ?)');
+        const term = '%' + req.query.search + '%';
+        params.push(term, term, term);
+    }
 
     const whereClause = conditions.length ? ' WHERE ' + conditions.join(' AND ') : '';
 

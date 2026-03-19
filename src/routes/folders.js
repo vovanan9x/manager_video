@@ -26,6 +26,7 @@ function renderTree(nodes, serverId, isAdmin) {
         html += hasKids
             ? `<button class="toggle-btn" onclick="toggleNode(this)" title="Thu gọn/Mở rộng" data-folder-id="${node.id}">&#9658;</button>`
             : `<span class="toggle-placeholder"></span>`;
+        html += `<input type="checkbox" class="folder-check" value="${node.id}" data-server-id="${sid}" onchange="updateBulkFolderToolbar()" style="margin-right:6px;cursor:pointer;accent-color:var(--primary,#6366f1)">`;
         html += `<span class="folder-icon">📁</span>`;
         html += `<span class="folder-name">${safeName}</span>`;
         html += `<span class="folder-path-chip" title="${safePath}">${safePath}</span>`;
@@ -221,6 +222,99 @@ router.post('/move/:id', requireAuth, (req, res) => {
     });
 
     res.redirect('/folders?success=moved');
+});
+
+// POST /folders/bulk-move — di chuyển nhiều thư mục cùng lúc
+router.post('/bulk-move', requireAuth, (req, res) => {
+    const rawIds = [].concat(req.body.folder_ids || []).map(Number).filter(Boolean);
+    const rawParent = req.body.new_parent_id;
+    const newParentId = (rawParent === '' || rawParent === undefined || rawParent === null) ? null : parseInt(rawParent, 10);
+
+    if (!rawIds.length) return res.json({ success: false, error: 'Không có thư mục nào được chọn' });
+
+    // Validate new parent exists (if not root)
+    let newBasePath = '';
+    let targetServerId = null;
+    if (newParentId !== null) {
+        const newParent = db.prepare('SELECT * FROM folders WHERE id = ?').get(newParentId);
+        if (!newParent) return res.json({ success: false, error: 'Thư mục đích không tồn tại' });
+        newBasePath = newParent.path;
+        targetServerId = newParent.server_id;
+    }
+
+    // Collect all descendants of every selected folder to prevent circular moves
+    function collectDescendantIds(folderId) {
+        const ids = new Set();
+        ids.add(folderId);
+        const children = db.prepare('SELECT id FROM folders WHERE parent_id = ?').all(folderId);
+        children.forEach(c => {
+            collectDescendantIds(c.id).forEach(d => ids.add(d));
+        });
+        return ids;
+    }
+
+    // If moving into a specific parent, that parent can't be a descendant of any selected folder
+    if (newParentId !== null) {
+        for (const fid of rawIds) {
+            const descendants = collectDescendantIds(fid);
+            if (descendants.has(newParentId)) {
+                return res.json({ success: false, error: ERROR_MESSAGES.circularMove });
+            }
+        }
+    }
+
+    const results = { moved: 0, skipped: 0, errors: [] };
+
+    const moveTransaction = db.transaction(() => {
+        for (const folderId of rawIds) {
+            const folder = db.prepare('SELECT * FROM folders WHERE id = ?').get(folderId);
+            if (!folder) { results.skipped++; continue; }
+
+            // Can't move a folder into itself
+            if (newParentId === folderId) { results.skipped++; continue; }
+
+            // Same parent — no-op
+            const currentParent = folder.parent_id === null ? null : folder.parent_id;
+            if (newParentId === currentParent) { results.skipped++; continue; }
+
+            // When moving to root, keep same server; when moving to parent, use parent's server
+            const effectiveServerId = targetServerId || folder.server_id;
+
+            const newPath = newBasePath ? `${newBasePath}/${folder.name}` : folder.name;
+
+            // Check duplicate
+            const existing = db.prepare('SELECT id FROM folders WHERE path = ? AND server_id = ? AND id != ?')
+                .get(newPath, effectiveServerId, folderId);
+            if (existing) {
+                results.errors.push(`"${folder.name}" đã tồn tại ở vị trí mới`);
+                continue;
+            }
+
+            const oldPath = folder.path;
+
+            // Update this folder
+            db.prepare('UPDATE folders SET parent_id = ?, path = ?, server_id = ? WHERE id = ?')
+                .run(newParentId, newPath, effectiveServerId, folderId);
+
+            // Update all descendants' paths
+            const children = db.prepare('SELECT * FROM folders WHERE path LIKE ?').all(oldPath + '/%');
+            children.forEach(child => {
+                const newChildPath = newPath + child.path.substring(oldPath.length);
+                db.prepare('UPDATE folders SET path = ? WHERE id = ?').run(newChildPath, child.id);
+            });
+
+            results.moved++;
+        }
+    });
+
+    try {
+        moveTransaction();
+    } catch (err) {
+        console.error('[Bulk Move Error]', err);
+        return res.json({ success: false, error: 'Lỗi khi di chuyển: ' + err.message });
+    }
+
+    res.json({ success: true, moved: results.moved, skipped: results.skipped, errors: results.errors });
 });
 
 module.exports = router;

@@ -369,6 +369,13 @@
                                     <% } %>
                             </div>
 
+                            <!-- Bulk action toolbar -->
+                            <div id="bulkFolderToolbar" style="display:none;align-items:center;gap:.75rem;background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.25);border-radius:8px;padding:.6rem 1rem;margin-bottom:.75rem;flex-wrap:wrap">
+                                <span id="bulkFolderCount" style="font-size:.85rem;color:var(--text-secondary);font-weight:500">0 đã chọn</span>
+                                <button class="btn btn-primary btn-sm" onclick="openBulkMoveModal()">📦 Di chuyển đã chọn</button>
+                                <button class="btn btn-secondary btn-sm" onclick="clearFolderSelection()">✕ Bỏ chọn</button>
+                            </div>
+
                             <!-- Explorer -->
                             <div class="explorer-card">
                                 <div class="explorer-header">
@@ -523,6 +530,30 @@
                             </div>
 
 
+                            <!-- ===== Modal: Bulk Move ===== -->
+                            <div class="modal-overlay" id="bulkMoveModal">
+                                <div class="modal">
+                                    <div class="modal-header">
+                                        <h3>📦 Di chuyển hàng loạt</h3>
+                                        <button class="modal-close" onclick="closeModal('bulkMoveModal')">✕</button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <div class="modal-breadcrumb" id="bulkMoveSummary"></div>
+                                        <div class="form-group" style="margin-top:.75rem">
+                                            <label class="form-label">Thư mục đích *</label>
+                                            <select id="bulkMoveTarget" class="form-control">
+                                                <option value="">📂 Root (không có cha)</option>
+                                            </select>
+                                        </div>
+                                        <p class="hint-text">⚠️ Toàn bộ thư mục con sẽ được cập nhật path theo.</p>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-outline" onclick="closeModal('bulkMoveModal')">Hủy</button>
+                                        <button type="button" class="btn btn-primary" id="bulkMoveSubmitBtn" onclick="submitBulkMove()">📦 Di chuyển</button>
+                                    </div>
+                                </div>
+                            </div>
+
                             <div id="__foldersData" data-json="<%= foldersJson.replace(/\" /g, '&quot;' ) %>"
                                 style="display:none"></div>
 
@@ -533,7 +564,7 @@
                                     document.getElementById(id).classList.remove('is-open');
                                 }
 
-                                ['createModal', 'renameModal', 'moveModal'].forEach(function (id) {
+                                ['createModal', 'renameModal', 'moveModal', 'bulkMoveModal'].forEach(function (id) {
                                     document.getElementById(id).addEventListener('click', function (e) {
                                         if (e.target === this) closeModal(id);
                                     });
@@ -544,6 +575,7 @@
                                         closeModal('createModal');
                                         closeModal('renameModal');
                                         closeModal('moveModal');
+                                        closeModal('bulkMoveModal');
                                     }
                                 });
 
@@ -701,6 +733,113 @@
                                     var p = new URLSearchParams(location.search);
                                     if (p.has('error') || p.has('success')) history.replaceState(null, '', location.pathname);
                                 })();
+
+                                // ── Bulk Move ──────────────────────────────────────────────
+                                function getCheckedFolders() {
+                                    return [...document.querySelectorAll('.folder-check:checked')].map(function(c) {
+                                        return { id: +c.value, serverId: +c.dataset.serverId };
+                                    });
+                                }
+
+                                function updateBulkFolderToolbar() {
+                                    var checked = getCheckedFolders();
+                                    var toolbar = document.getElementById('bulkFolderToolbar');
+                                    if (!toolbar) return;
+                                    if (checked.length > 0) {
+                                        toolbar.style.display = 'flex';
+                                        document.getElementById('bulkFolderCount').textContent = checked.length + ' đã chọn';
+                                    } else {
+                                        toolbar.style.display = 'none';
+                                    }
+                                }
+
+                                function clearFolderSelection() {
+                                    document.querySelectorAll('.folder-check').forEach(function(c) { c.checked = false; });
+                                    updateBulkFolderToolbar();
+                                }
+
+                                function openBulkMoveModal() {
+                                    var checked = getCheckedFolders();
+                                    if (!checked.length) return;
+
+                                    var selectedIds = new Set(checked.map(function(c) { return c.id; }));
+
+                                    // Collect all descendant IDs of selected folders
+                                    function collectDescendants(fid) {
+                                        var result = new Set();
+                                        result.add(fid);
+                                        folderData.forEach(function (f) {
+                                            if (f.parent_id === fid) {
+                                                collectDescendants(f.id).forEach(function (d) { result.add(d); });
+                                            }
+                                        });
+                                        return result;
+                                    }
+
+                                    var excluded = new Set();
+                                    selectedIds.forEach(function(fid) {
+                                        collectDescendants(fid).forEach(function(d) { excluded.add(d); });
+                                    });
+
+                                    // Summary
+                                    var names = checked.map(function(c) {
+                                        var f = folderData.find(function(fd) { return fd.id === c.id; });
+                                        return f ? f.name : '#' + c.id;
+                                    });
+                                    document.getElementById('bulkMoveSummary').textContent = '📋 ' + names.join(', ');
+
+                                    // Populate target select — exclude selected and their descendants
+                                    var sel = document.getElementById('bulkMoveTarget');
+                                    sel.innerHTML = '<option value="">📂 Root (không có cha)</option>';
+                                    folderData
+                                        .filter(function(f) { return !excluded.has(f.id); })
+                                        .sort(function(a, b) { return a.path.localeCompare(b.path); })
+                                        .forEach(function(f) {
+                                            var opt = document.createElement('option');
+                                            opt.value = f.id;
+                                            opt.textContent = '📁 ' + f.path;
+                                            sel.appendChild(opt);
+                                        });
+
+                                    document.getElementById('bulkMoveModal').classList.add('is-open');
+                                    setTimeout(function() { sel.focus(); }, 80);
+                                }
+
+                                async function submitBulkMove() {
+                                    var checked = getCheckedFolders();
+                                    if (!checked.length) return;
+                                    var btn = document.getElementById('bulkMoveSubmitBtn');
+                                    var origText = btn.textContent;
+                                    btn.disabled = true;
+                                    btn.textContent = '⏳ Đang xử lý...';
+
+                                    var targetId = document.getElementById('bulkMoveTarget').value;
+
+                                    try {
+                                        var res = await fetch('/folders/bulk-move', {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({
+                                                folder_ids: checked.map(function(c) { return c.id; }),
+                                                new_parent_id: targetId === '' ? null : parseInt(targetId)
+                                            })
+                                        });
+                                        var data = await res.json();
+                                        if (data.success) {
+                                            var msg = '✅ Đã di chuyển ' + data.moved + ' thư mục';
+                                            if (data.skipped > 0) msg += '\n⏩ Bỏ qua ' + data.skipped;
+                                            if (data.errors && data.errors.length > 0) msg += '\n⚠️ ' + data.errors.join(', ');
+                                            alert(msg);
+                                            location.reload();
+                                        } else {
+                                            alert('❌ ' + (data.error || 'Lỗi không xác định'));
+                                        }
+                                    } catch(e) {
+                                        alert('❌ Lỗi kết nối');
+                                    }
+                                    btn.disabled = false;
+                                    btn.textContent = origText;
+                                }
 
                                 // Double-click confirm for folder delete
                                 document.addEventListener('click', function (e) {
